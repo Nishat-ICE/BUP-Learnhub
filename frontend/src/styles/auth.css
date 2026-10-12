@@ -1,0 +1,161 @@
+/* Auth page - wave layout. ID selectors override everything in main.css */
+#authPage.auth-page {
+  position: relative !important;
+  overflow: hidden !important;
+  display: grid !important;
+  grid-template-columns: 54% 46% !important;
+  min-height: 100vh;
+  background: #f1f4f9 !important;
+}
+
+#authPage .auth-left {
+  position: relative !important;
+  z-index: 2 !important;
+  overflow: visible !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+  -webkit-clip-path: none !important;
+  padding: 40px 200px 40px 44px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  background:
+    radial-gradient(circle at 80% 85%, rgba(45, 212, 191, 0.55), transparent 45%),
+    linear-gradient(160deg, #06263a 0%, #0b4a5a 38%, #0f766e 70%, #14b8a6 100%) !important;
+}
+
+#authPage .auth-left::after,
+#authPage .auth-left::before { display: none !important; }
+
+#authPage .auth-left .glass-card { max-width: 520px; padding: 36px; }
+#authPage .auth-left .glass-card h1 { font-size: 44px !important; }
+#authPage .auth-left .glass-card p  { font-size: 15.5px !important; }
+
+#authPage .wave-edge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 240px;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 5;
+}
+
+#authPage .auth-right {
+  position: relative !important;
+  z-index: 1 !important;
+  margin: 0 !important;
+  padding: 40px 48px 40px 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background:
+    radial-gradient(circle at 0% 50%, rgba(15, 118, 110, 0.10), transparent 40%),
+    #f1f4f9 !important;
+}
+
+#authPage .auth-right::before,
+#authPage .auth-right::after { display: none !important; }
+
+@media (max-width: 850px) {
+  #authPage.auth-page { grid-template-columns: 1fr !important; }
+  #authPage .auth-left { display: none !important; }
+  #authPage .auth-right { padding: 24px !important; }
+}
+/* 3D panel polish */
+#authPage .auth-left {
+  background:
+    radial-gradient(circle at 85% 90%, rgba(94, 234, 212, 0.55), transparent 42%),
+    radial-gradient(circle at 10% 0%, rgba(255,255,255,0.10), transparent 35%),
+    linear-gradient(165deg, #04202f 0%, #0a4455 35%, #0f766e 68%, #14b8a6 100%) !important;
+  padding-right: 215px !important;
+}
+#authPage .auth-right {
+  background:
+    radial-gradient(circle at 0% 60%, rgba(15,118,110,0.12), transparent 42%),
+    linear-gradient(180deg, #f6f8fc 0%, #eef2f8 100%) !important;
+}
+
+/* ===== left text without card + seam removal ===== */
+#authPage .auth-left .left-content {
+  position: relative;
+  z-index: 3;
+  max-width: 480px;
+  color: #ffffff;
+}
+
+#authPage .auth-left .left-content .brand-icon {
+  width: 74px;
+  height: 74px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(214,168,79,0.95), rgba(255,255,255,0.25));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 26px;
+  box-shadow: 0 16px 36px rgba(0,0,0,0.25);
+}
+
+#authPage .auth-left .left-content h1 {
+  font-size: 50px;
+  letter-spacing: -1.8px;
+  line-height: 1.05;
+  margin-bottom: 16px;
+  text-shadow: 0 6px 24px rgba(0,0,0,0.30);
+}
+
+#authPage .auth-left .left-content p {
+  font-size: 16px;
+  line-height: 1.8;
+  color: rgba(255,255,255,0.86);
+  margin-bottom: 30px;
+}
+
+#authPage .auth-left .left-content .features {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 0;
+}
+
+#authPage .auth-left .left-content .features div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+#authPage .auth-left .left-content .features svg {
+  color: #d6a84f;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+#authPage .auth-left .left-content .features span {
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+}
+
+/* seam removal: flat identical colors on both sides of the wave */
+#authPage.auth-page { background: #f3f5f9 !important; }
+
+#authPage .auth-right {
+  background: #f3f5f9 !important;
+  border: none !important;
+  outline: none !important;
+}
+
+#authPage .auth-left { border: none !important; }
+
+/* ensure nothing draws a vertical line */
+#authPage .auth-right::before,
+#authPage .auth-right::after,
+#authPage .auth-left::before,
+#authPage .auth-left::after { display: none !important; content: none !important; }
+
+#authPage .auth-card { border: 1px solid rgba(255,255,255,0.8) !important; }
