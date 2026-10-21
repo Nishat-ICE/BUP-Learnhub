@@ -1,0 +1,78 @@
+/* Small additions only; existing Login curve and Admin theme stay intact. */
+
+html body .auth-card button.reset-flow-link {
+  display: inline !important;
+  width: auto !important;
+  padding: 0 5px !important;
+  margin: 0 !important;
+  background: transparent !important;
+  color: #087a70 !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.auth-card .switch span {
+  margin-left: 6px;
+}
+
+.auth-card .reset-code-input {
+  font-family: inherit;
+  letter-spacing: .5px;
+}
+
+.reset-flow-approved {
+  margin: 16px 0;
+  padding: 17px;
+  border: 1px solid #e8d291;
+  border-radius: 14px;
+  background: #fff9e8;
+  color: #554318;
+  overflow-wrap: anywhere;
+}
+
+.reset-flow-approved p {
+  margin: 9px 0;
+}
+
+.reset-flow-approved code {
+  display: block;
+  padding: 12px;
+  margin: 10px 0;
+  border: 1px solid #d7e8e5;
+  border-radius: 10px;
+  background: #fff;
+  color: #075e57;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.reset-flow-request {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 17px 0;
+  border-top: 1px solid #e8edf0;
+}
+
+.reset-flow-request strong,
+.reset-flow-request small {
+  display: block;
+}
+
+.reset-flow-request small {
+  margin-top: 5px;
+  color: #667085;
+}
+
+@media (max-width: 700px) {
+  .reset-flow-request {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

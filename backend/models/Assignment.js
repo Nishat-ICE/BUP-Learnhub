@@ -1,4 +1,4 @@
-﻿const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
 const assignmentSchema = new mongoose.Schema(
   {
@@ -51,4 +51,13 @@ const assignmentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+
+assignmentSchema.path("submissions").schema.add({
+  attachment: {
+    storedName: String,
+    originalName: String,
+    mimeType: String,
+    size: Number
+  }
+});
 module.exports = mongoose.model("Assignment", assignmentSchema);

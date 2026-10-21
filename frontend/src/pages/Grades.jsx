@@ -194,7 +194,7 @@ const FacultyView = () => {
 
 const Grades = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const isGrader = user.role === "faculty" || user.role === "admin";
+  const isGrader = user.role === "faculty";
 
   return (
     <Layout title="Grades & Progress">

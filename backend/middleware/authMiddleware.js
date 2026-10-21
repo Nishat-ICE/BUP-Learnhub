@@ -1,4 +1,4 @@
-﻿const jwt = require("jsonwebtoken");
+const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
 const protect = async (req, res, next) => {
@@ -19,6 +19,21 @@ const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     req.user = await User.findById(decoded.id).select("-password");
+    if (
+      req.user &&
+      Number(decoded.authVersion ?? 0) !==
+        Number(req.user.authVersion ?? 0)
+    ) {
+      return res.status(401).json({
+        message: "Session expired. Please sign in again."
+      });
+    }
+
+    if (req.user?.isActive === false) {
+      return res.status(403).json({
+        message: "Your account is deactivated."
+      });
+    }
 
     if (!req.user) {
       return res.status(401).json({ message: "User not found." });

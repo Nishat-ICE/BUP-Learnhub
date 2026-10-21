@@ -1,0 +1,191 @@
+/* Course, assignment and announcement management */
+
+.crud-alert {
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  border-radius: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.crud-success {
+  background: #e7f8f1;
+  border: 1px solid #b6ebcf;
+  color: #145c39;
+}
+
+.crud-error {
+  background: #fff0f0;
+  border: 1px solid #f4c1c1;
+  color: #9b2525;
+}
+
+.crud-form-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.crud-form-heading h3 {
+  margin: 5px 0 0;
+}
+
+.crud-kicker {
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.8px;
+}
+
+.crud-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+.crud-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #344054;
+}
+
+.crud-form input,
+.crud-form select,
+.crud-form textarea,
+.crud-submission textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 13px 15px;
+  border: 1px solid #dfe6ed;
+  border-radius: 13px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  outline: none;
+  resize: vertical;
+}
+
+.crud-form input:focus,
+.crud-form select:focus,
+.crud-form textarea:focus,
+.crud-submission textarea:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, .1);
+}
+
+.crud-wide {
+  grid-column: 1 / -1;
+}
+
+.crud-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.crud-grid .course-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.crud-grid .course-card > small {
+  margin-top: 9px;
+}
+
+.crud-grid .course-card > p {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.crud-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+  align-items: center;
+}
+
+html body button.crud-action,
+html body button.crud-submit,
+html body button.crud-cancel {
+  width: auto !important;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 11px 15px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 12px !important;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+html body button.crud-edit {
+  color: #075e57 !important;
+  background: #e6f7f2 !important;
+  box-shadow: none !important;
+}
+
+html body button.crud-delete {
+  color: #af3442 !important;
+  background: #fff0f1 !important;
+  box-shadow: none !important;
+}
+
+html body button.crud-cancel {
+  color: #475467 !important;
+  background: #edf1f5 !important;
+  box-shadow: none !important;
+}
+
+html body button.crud-submit {
+  color: #fff !important;
+  background: linear-gradient(110deg, #092d3e, #087b72) !important;
+  box-shadow: 0 8px 20px rgba(8, 75, 76, .17) !important;
+}
+
+html body button.crud-action:disabled,
+html body button.crud-submit:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.crud-grid .course-card > button.crud-submit {
+  margin-top: 20px !important;
+  width: 100% !important;
+}
+
+.crud-submission {
+  margin-top: 18px;
+}
+
+.crud-announcement-text {
+  white-space: pre-wrap;
+}
+
+@media (max-width: 1100px) {
+  .crud-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 750px) {
+  .crud-grid,
+  .crud-form {
+    grid-template-columns: 1fr;
+  }
+
+  .crud-wide {
+    grid-column: auto;
+  }
+}

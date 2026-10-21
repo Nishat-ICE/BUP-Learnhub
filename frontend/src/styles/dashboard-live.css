@@ -1,0 +1,144 @@
+/* Extra styling for database-backed dashboard.
+   Existing dashboard theme and layout remain unchanged. */
+
+.live-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 0 20px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+html body button.live-refresh {
+  width: auto !important;
+  flex-shrink: 0;
+  padding: 10px 15px !important;
+  border-radius: 12px !important;
+  font-size: 13px;
+}
+
+.live-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.live-panel-head h3 {
+  margin: 0 !important;
+}
+
+.live-panel-head a {
+  color: #087b72;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.live-panel-head a:hover {
+  text-decoration: underline;
+}
+
+.live-meta {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.live-empty {
+  color: #667085;
+  line-height: 1.7;
+  padding: 12px 0;
+}
+
+.live-state {
+  color: #475467;
+  line-height: 1.6;
+}
+
+.live-state button {
+  margin-top: 15px;
+}
+
+.live-progress {
+  padding: 13px 0;
+  border-bottom: 1px solid #e8edf1;
+}
+
+.live-progress:last-child {
+  border-bottom: none;
+}
+
+.live-progress-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.live-progress-heading strong {
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.live-progress-heading span {
+  color: #087b72;
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.live-progress .bar {
+  margin-top: 11px;
+}
+
+.live-grade-row,
+.live-assessment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  border-bottom: 1px solid #e8edf1;
+  padding: 14px 0;
+}
+
+.live-grade-row:last-child,
+.live-assessment-row:last-child {
+  border-bottom: none;
+}
+
+.live-grade-row strong {
+  font-size: 14px;
+}
+
+.live-assessment-row span {
+  color: #667085;
+}
+
+.live-grade-value {
+  padding: 8px 13px;
+  border-radius: 12px;
+  background: #e6f6f1;
+  color: #07695e;
+  font-weight: 900;
+}
+
+@media (max-width: 650px) {
+  .live-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .live-panel-head {
+    align-items: flex-start;
+  }
+}

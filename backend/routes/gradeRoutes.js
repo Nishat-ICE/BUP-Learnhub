@@ -72,9 +72,14 @@ router.get("/my", protect, async (req, res) => {
 });
 
 // Faculty/Admin: all submissions for grading
-router.get("/submissions", protect, authorize("faculty", "admin"), async (req, res) => {
+router.get("/submissions", protect, authorize("faculty"), async (req, res) => {
   try {
-    const assignments = await Assignment.find()
+    const ownedCourseIds = await Course.distinct(
+      "_id",
+      { faculty: req.user._id }
+    );
+
+    const assignments = await Assignment.find({ course: { $in: ownedCourseIds } })
       .populate("course", "title code")
       .populate("submissions.student", "name email studentId")
       .sort({ createdAt: -1 });
@@ -105,17 +110,43 @@ router.get("/submissions", protect, authorize("faculty", "admin"), async (req, r
 });
 
 // Faculty/Admin: grade a submission
-router.put("/:assignmentId/:submissionId", protect, authorize("faculty", "admin"), async (req, res) => {
+router.put("/:assignmentId/:submissionId", protect, authorize("faculty"), async (req, res) => {
   try {
     const { grade, feedback } = req.body;
 
     const assignment = await Assignment.findById(req.params.assignmentId);
     if (!assignment) return res.status(404).json({ message: "Assignment not found." });
 
+        const course = await Course.findById(assignment.course)
+      .select("faculty");
+
+    if (
+      !course ||
+      String(course.faculty) !== String(req.user._id)
+    ) {
+      return res.status(403).json({
+        message: "Only this course's faculty can grade submissions."
+      });
+    }
+
+    const mark = Number(grade);
+
+    if (
+      grade === null ||
+      grade === undefined ||
+      String(grade).trim() === "" ||
+      !Number.isFinite(mark) ||
+      mark < 0 ||
+      mark > 100
+    ) {
+      return res.status(400).json({
+        message: "Marks must be between 0 and 100."
+      });
+    }
     const submission = assignment.submissions.id(req.params.submissionId);
     if (!submission) return res.status(404).json({ message: "Submission not found." });
 
-    submission.grade = Number(grade);
+    submission.grade = mark;
     submission.feedback = feedback || "";
 
     await assignment.save();

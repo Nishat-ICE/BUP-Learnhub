@@ -1,0 +1,78 @@
+.crud-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 14px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.crud-upload input[type="file"] {
+  width: 100%;
+  padding: 13px;
+  border: 1px dashed #72b5aa;
+  border-radius: 13px;
+  background: #f2faf8;
+  color: #172033;
+  cursor: pointer;
+}
+
+.crud-upload small {
+  color: #0c766c;
+  overflow-wrap: anywhere;
+}
+
+.submission-files {
+  margin-top: 18px;
+  padding: 13px;
+  border: 1px solid #e3ebe9;
+  border-radius: 15px;
+  background: #f7fbfa;
+}
+
+.submission-files summary {
+  color: #075e57;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.submission-file-item {
+  padding: 13px 0;
+  border-top: 1px solid #e3ebe9;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+
+.submission-file-item small {
+  display: block;
+  color: #667085;
+  margin-top: 4px;
+}
+
+.submission-file-item p {
+  margin: 9px 0;
+  white-space: pre-wrap;
+}
+
+html body button.download-file-btn {
+  width: auto !important;
+  margin-top: 10px !important;
+  padding: 9px 12px !important;
+  border-radius: 10px !important;
+  background: #e1f5f0 !important;
+  color: #075e57 !important;
+  box-shadow: none !important;
+  font-size: 12px;
+}
+
+.submission-error {
+  color: #ad3030;
+}
+
+@media (max-width: 750px) {
+  .crud-upload input[type="file"] {
+    max-width: 100%;
+  }
+}

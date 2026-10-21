@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GraduationCap, ShieldCheck, BookOpen, BarChart3, Eye, EyeOff, Mail } from "lucide-react";
 import api from "../api/api";
+import "../styles/reset-flow.css";
 import "../styles/auth.css";
 
 const departments = [
@@ -19,6 +20,8 @@ const BAND = `M100,0 C20,130 20,290 130,420 C236,560 238,800 60,1000 L${60+d},10
 const Login = () => {
   const navigate = useNavigate();
   const [mode, setMode] = useState("login");
+  const [resetCode, setResetCode] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -36,8 +39,56 @@ const Login = () => {
     setError(""); setInfo("");
 
     if (mode === "forgot") {
-      if (!form.email) return setError("Please enter your email address.");
-      setInfo("Password reset request received. Please contact the system administrator for recovery.");
+      try {
+        await api.post("/password-reset/request", {
+          email: form.email.trim()
+        });
+
+        setInfo(
+          "If an active account matches this email, the request is waiting for Admin review. After identity verification, ask Admin for your one-time code."
+        );
+      } catch (err) {
+        setError(
+          err.response?.data?.message || "Could not send reset request."
+        );
+      }
+      return;
+    }
+
+    if (mode === "reset") {
+      if (!resetCode.trim()) {
+        setError("Enter the one-time code provided by Admin.");
+        return;
+      }
+
+      if (form.password.length < 8) {
+        setError("New password must have at least 8 characters.");
+        return;
+      }
+
+      if (form.password !== confirmPassword) {
+        setError("The passwords do not match.");
+        return;
+      }
+
+      try {
+        await api.post("/password-reset/complete", {
+          email: form.email.trim(),
+          code: resetCode.trim(),
+          newPassword: form.password
+        });
+
+        setMode("login");
+        setResetCode("");
+        setConfirmPassword("");
+        setForm((current) => ({ ...current, password: "" }));
+        setInfo("Password updated. Sign in using your new password.");
+      } catch (err) {
+        setError(
+          err.response?.data?.message ||
+            "Invalid or expired reset code."
+        );
+      }
       return;
     }
 
@@ -118,11 +169,11 @@ const Login = () => {
       <div className="auth-right">
         <form className="auth-card" onSubmit={submit}>
           <span className="tag">BUP Learning Portal</span>
-          <h2>{mode === "login" ? "Welcome Back" : mode === "register" ? "Create Account" : "Forgot Password"}</h2>
+          <h2>{mode === "login" ? "Welcome Back" : mode === "register" ? "Create Account" : mode === "forgot" ? "Forgot Password" : "Set New Password"}</h2>
           <p className="muted">
             {mode === "login" ? "Login to continue your academic journey"
               : mode === "register" ? "Register to access LearnHub"
-              : "Enter your email to request password recovery"}
+              : mode === "forgot" ? "Enter your email to request password recovery" : "Enter the code provided by Admin and choose a new password"}
           </p>
 
           {error && <div className="error">{error}</div>}
@@ -133,15 +184,14 @@ const Login = () => {
               <label>Full Name</label>
               <input name="name" value={form.name} onChange={change} placeholder="Enter full name" required />
 
-              <label>Role</label>
-              <select name="role" value={form.role} onChange={change}>
-                <option value="student">Student</option>
-                <option value="faculty">Faculty</option>
-                <option value="staff">Academic Staff</option>
-                <option value="admin">System Admin</option>
-                <option value="authority">University Authority</option>
-              </select>
+              
 
+              <label>Role</label>
+<select name="role" value={form.role} onChange={change} required>
+  <option value="student">Student</option>
+  <option value="faculty">Faculty</option>
+  <option value="staff">Academic Staff</option>
+</select>
               <label>Department</label>
               <select name="department" value={form.department} onChange={change} required>
                 <option value="">Select department</option>
@@ -159,19 +209,52 @@ const Login = () => {
             <Mail size={18} />
           </div>
 
+          {mode === "reset" && (
+            <>
+              <label>One-time reset code</label>
+              <input
+                className="reset-code-input"
+                type="text"
+                value={resetCode}
+                onChange={(event) => setResetCode(event.target.value)}
+                placeholder="Paste the code provided by Admin"
+                autoComplete="one-time-code"
+                required
+              />
+            </>
+          )}
+
           {mode !== "forgot" && (
             <>
-              <label>Password</label>
+              <label>{mode === "reset" ? "New Password" : "Password"}</label>
               <div className="password-field">
                 <input
                   type={showPassword ? "text" : "password"}
                   name="password" value={form.password} onChange={change}
-                  placeholder="Enter password" required
+                  placeholder={mode === "reset" ? "New password (8+ characters)" : "Enter password"} required
                 />
                 <button type="button" className="eye-btn" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
                 </button>
               </div>
+
+              {mode === "reset" && (
+                <>
+                  <label>Confirm new password</label>
+                  <div className="password-field">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(event) =>
+                        setConfirmPassword(event.target.value)
+                      }
+                      placeholder="Type the new password again"
+                      autoComplete="new-password"
+                      required
+                    />
+                  </div>
+                </>
+              )}
 
               {mode === "login" && (
                 <div className="forgot-row">
@@ -182,13 +265,38 @@ const Login = () => {
           )}
 
           <button type="submit" className="main-auth-btn">
-            {mode === "login" ? "Sign In" : mode === "register" ? "Create Account" : "Send Reset Request"}
+            {mode === "login" ? "Sign In" : mode === "register" ? "Create Account" : mode === "forgot" ? "Send Reset Request" : "Set New Password"}
           </button>
 
           <p className="switch">
             {mode === "login" && (<>No account?<span onClick={() => switchMode("register")}> Register</span></>)}
             {mode === "register" && (<>Already have account?<span onClick={() => switchMode("login")}> Login</span></>)}
-            {mode === "forgot" && (<>Remember password?<span onClick={() => switchMode("login")}> Back to Login</span></>)}
+            {mode === "forgot" && (
+              <>
+                Have a code?
+                <button
+                  type="button"
+                  className="reset-flow-link"
+                  onClick={() => switchMode("reset")}
+                >
+                  Enter reset code
+                </button>
+                <span onClick={() => switchMode("login")}>
+                  Back to Login
+                </span>
+              </>
+            )}
+            {mode === "reset" && (
+              <>
+                Need a code?
+                <span onClick={() => switchMode("forgot")}>
+                  Request a reset
+                </span>
+                <span onClick={() => switchMode("login")}>
+                  Back to Login
+                </span>
+              </>
+            )}
           </p>
         </form>
       </div>

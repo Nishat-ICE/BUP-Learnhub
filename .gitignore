@@ -39,3 +39,14 @@ node_modules/.vite/
 # Misc
 *.zip
 coverage/
+backend/private_uploads/
+node_modules/
+.env
+.env.*
+!.env.example
+backend/private_uploads/
+backend/uploads/
+frontend/dist/
+dashboard-backup-*/
+*.backup-*
+*.zip
