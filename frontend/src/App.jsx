@@ -1,3 +1,7 @@
+import Notifications from "./pages/Notifications.jsx";
+import Discussions from "./pages/Discussions.jsx";
+import Quizzes from "./pages/Quizzes.jsx";
+import Materials from "./pages/Materials.jsx";
 import AdminPanel from "./pages/AdminPanel.jsx";
 import AuthorityPanel from "./pages/AuthorityPanel.jsx";
 import AcademicUpdates from "./pages/AcademicUpdates.jsx";
@@ -68,6 +72,36 @@ function AcademicAccess({ allowed, children }) {
     ? children
     : <Navigate to="/dashboard" replace />;
 }
+function MaterialAccess({ children }) {
+  let role = "";
+
+  try {
+    role = JSON.parse(
+      localStorage.getItem("user") || "{}"
+    ).role;
+  } catch {
+    role = "";
+  }
+
+  return ["student", "faculty"].includes(role)
+    ? children
+    : <Navigate to="/dashboard" replace />;
+}
+function DiscussionAccess({ children }) {
+  let role = "";
+
+  try {
+    role = JSON.parse(
+      localStorage.getItem("user") || "{}"
+    ).role;
+  } catch {
+    role = "";
+  }
+
+  return ["student", "faculty"].includes(role)
+    ? children
+    : <Navigate to="/dashboard" replace />;
+}
 function App() {
   const token = localStorage.getItem("token");
 
@@ -102,6 +136,42 @@ function App() {
             <LeadershipOnly role="authority">
               <AuthorityPanel />
             </LeadershipOnly>
+          </PrivateRoute>
+        }
+      />
+          <Route
+        path="/materials"
+        element={
+          <PrivateRoute>
+            <MaterialAccess>
+              <Materials />
+            </MaterialAccess>
+          </PrivateRoute>
+        }
+      />
+          <Route
+        path="/quizzes"
+        element={
+          <PrivateRoute>
+            <Quizzes />
+          </PrivateRoute>
+        }
+      />
+          <Route
+        path="/discussions"
+        element={
+          <PrivateRoute>
+            <DiscussionAccess>
+              <Discussions />
+            </DiscussionAccess>
+          </PrivateRoute>
+        }
+      />
+          <Route
+        path="/notifications"
+        element={
+          <PrivateRoute>
+            <Notifications />
           </PrivateRoute>
         }
       />

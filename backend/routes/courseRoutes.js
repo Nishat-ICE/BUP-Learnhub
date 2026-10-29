@@ -155,6 +155,16 @@ router.delete("/:id", protect, authorize("faculty", "admin"), async (req, res) =
       });
     }
 
+    const linkedQuiz = await require("../models/Quiz").exists({
+      course: course._id
+    });
+
+    if (linkedQuiz) {
+      return res.status(409).json({
+        message: "This course has quizzes. Quizzes with attempts must be preserved."
+      });
+    }
+
     await course.deleteOne();
     return res.json({ message: "Course deleted successfully." });
   } catch (error) {

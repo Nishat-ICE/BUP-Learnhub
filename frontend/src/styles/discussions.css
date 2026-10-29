@@ -1,0 +1,279 @@
+.dh-page {
+  padding-bottom: 30px;
+  color: #102a3a;
+}
+
+.dh-intro,
+.dh-thread-header,
+.dh-section-head,
+.dh-reply-head,
+.dh-toolbar,
+.dh-actions,
+.dh-pagination {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.dh-intro,
+.dh-thread-header,
+.dh-section-head,
+.dh-reply-head,
+.dh-toolbar {
+  justify-content: space-between;
+}
+
+.dh-intro > svg,
+.dh-empty > svg {
+  color: #d6a84f;
+  flex-shrink: 0;
+}
+
+.dh-intro h2 {
+  font-size: 28px;
+  margin: 8px 0;
+}
+
+.dh-intro p,
+.dh-empty p {
+  color: #667085;
+  line-height: 1.65;
+}
+
+.dh-eyebrow {
+  color: #087a70;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+}
+
+.dh-notice {
+  padding: 13px 16px;
+  margin-bottom: 19px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.dh-notice.success {
+  background: #e6f7ef;
+  color: #156344;
+}
+
+.dh-notice.error {
+  background: #fff0f0;
+  color: #9b2931;
+}
+
+.dh-toolbar label,
+.dh-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dh-toolbar label {
+  min-width: min(100%, 320px);
+}
+
+.dh-toolbar > span,
+.dh-section-head > span,
+.dh-thread-header small,
+.dh-reply-head small {
+  color: #667085;
+  font-size: 12px;
+}
+
+.dh-page input,
+.dh-page select,
+.dh-page textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #dfe7e9;
+  border-radius: 11px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  outline: none;
+}
+
+.dh-page input:focus,
+.dh-page select:focus,
+.dh-page textarea:focus {
+  border-color: #087a70;
+  box-shadow:
+    0 0 0 4px rgba(8, 122, 112, .1);
+}
+
+.dh-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+.dh-form > label,
+.dh-form > textarea {
+  width: 100%;
+}
+
+.dh-form textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.dh-list > .dh-section-head {
+  margin-bottom: 17px;
+}
+
+.dh-thread {
+  margin-bottom: 17px;
+}
+
+.dh-thread-header {
+  margin-bottom: 18px;
+}
+
+.dh-author,
+.dh-thread-header small,
+.dh-reply-head strong {
+  display: block;
+}
+
+.dh-author {
+  font-weight: 850;
+}
+
+.dh-thread-header small {
+  margin-top: 5px;
+}
+
+.dh-reply-count {
+  padding: 7px 10px;
+  border-radius: 99px;
+  background: #e8f6f2;
+  color: #087a70;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.dh-thread h3 {
+  margin-bottom: 9px;
+}
+
+.dh-body {
+  color: #475467;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+
+.dh-actions {
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.dh-inline {
+  padding-top: 16px;
+}
+
+.dh-replies {
+  border-top: 1px solid #e7edef;
+  margin-top: 22px;
+  padding-top: 20px;
+}
+
+.dh-replies h4 {
+  margin-bottom: 14px;
+}
+
+.dh-reply {
+  background: #f8fafb;
+  border: 1px solid #e7edef;
+  border-radius: 15px;
+  padding: 16px;
+  margin-bottom: 11px;
+}
+
+.dh-reply-head {
+  margin-bottom: 9px;
+}
+
+.dh-empty {
+  text-align: center;
+  padding: 35px 20px;
+}
+
+.dh-empty h3 {
+  margin: 10px 0;
+}
+
+.dh-empty a {
+  display: inline-block;
+  margin-top: 13px;
+  color: #087a70;
+  font-weight: 800;
+}
+
+.dh-pagination {
+  justify-content: center;
+  margin: 24px 0;
+  color: #667085;
+}
+
+html body .dh-page button.dh-primary,
+html body .dh-page button.dh-secondary,
+html body .dh-page button.dh-danger {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 10px 14px !important;
+  border-radius: 11px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+html body .dh-page button.dh-primary {
+  background: linear-gradient(
+    110deg,
+    #092b3e,
+    #087a70
+  ) !important;
+  color: white !important;
+}
+
+html body .dh-page button.dh-secondary {
+  background: #e8f6f2 !important;
+  color: #087a70 !important;
+  box-shadow: none !important;
+}
+
+html body .dh-page button.dh-danger {
+  background: #fff0f1 !important;
+  color: #a5323c !important;
+  box-shadow: none !important;
+}
+
+.dh-page button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .dh-toolbar,
+  .dh-intro,
+  .dh-thread-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dh-toolbar label {
+    width: 100%;
+  }
+}

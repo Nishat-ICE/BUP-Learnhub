@@ -1,3 +1,4 @@
+import NotificationBell from "./NotificationBell.jsx";
 import React from "react";
 const Topbar = ({ title }) => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -9,6 +10,7 @@ const Topbar = ({ title }) => {
         <p>Welcome back, {user.name || "User"}</p>
       </div>
 
+            <NotificationBell />
       <div className="profile">
         <div className="avatar">{user.name?.charAt(0) || "U"}</div>
         <div>

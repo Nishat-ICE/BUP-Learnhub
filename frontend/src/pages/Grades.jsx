@@ -1,3 +1,4 @@
+import StudentCombinedGrades from "../components/StudentCombinedGrades.jsx";
 import React, { useEffect, useState } from "react";
 import Layout from "../components/Layout.jsx";
 import api from "../api/api";
@@ -198,7 +199,7 @@ const Grades = () => {
 
   return (
     <Layout title="Grades & Progress">
-      {isGrader ? <FacultyView /> : <StudentView />}
+      {isGrader ? <FacultyView /> : user.role === "student" ? <StudentCombinedGrades /> : <StudentView />}
     </Layout>
   );
 };

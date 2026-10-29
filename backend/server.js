@@ -58,6 +58,14 @@ app.use("/api/grades", require("./routes/gradeRoutes"));
 app.use("/api/management", require("./routes/leadershipRoutes"));
 app.use("/api/password-reset", require("./routes/passwordResetRoutes"));
 
+app.use("/api/materials", require("./routes/materialRoutes"));
+
+app.use("/api/quizzes", require("./routes/quizRoutes"));
+
+app.use("/api/discussions", require("./routes/discussionRoutes"));
+
+app.use("/api/notifications", require("./routes/notificationRoutes"));
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

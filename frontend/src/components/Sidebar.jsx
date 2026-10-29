@@ -1,3 +1,6 @@
+import { MessageCircle as DiscussionsIcon } from "lucide-react";
+import { ListChecks as QuizNavIcon } from "lucide-react";
+import { FileText as MaterialsIcon } from "lucide-react";
 import React from "react";
 import { Link, NavLink } from "react-router-dom";
 import {
@@ -51,6 +54,11 @@ export default function Sidebar() {
             <NavLink to="/courses">
               <BookOpen size={18} /> Courses
             </NavLink>
+        {["student", "faculty"].includes(user.role) && (
+          <NavLink to="/materials">
+            <MaterialsIcon size={18} /> Materials
+          </NavLink>
+        )}
             <NavLink to="/assignments">
               <ClipboardCheck size={18} /> Assignments
             </NavLink>
@@ -82,7 +90,23 @@ export default function Sidebar() {
             <BarChart3 size={18} /> Authority Reports
           </NavLink>
         )}
-      </nav>
+              {["student", "faculty", "staff", "admin", "authority"].includes(user.role) && (
+          <NavLink to="/quizzes">
+            <QuizNavIcon size={18} />
+            {user.role === "staff"
+              ? "Quiz Participation"
+              : ["admin", "authority"].includes(user.role)
+              ? "Quiz Reports"
+              : "Quizzes"}
+          </NavLink>
+        )}
+        {["student", "faculty"].includes(user.role) && (
+          <NavLink to="/discussions">
+            <DiscussionsIcon size={18} />
+            Discussions
+          </NavLink>
+        )}
+</nav>
 
       <button type="button" className="logout" onClick={logout}>
         <LogOut size={18} /> Logout

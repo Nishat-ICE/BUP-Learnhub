@@ -1,0 +1,304 @@
+/* New notification elements only. Existing pages remain unchanged. */
+
+.topbar > .nh-bell {
+  margin-left: auto;
+}
+
+.nh-bell {
+  position: relative;
+  flex-shrink: 0;
+  z-index: 50;
+}
+
+html body .nh-bell button.nh-icon-button {
+  position: relative;
+  width: 45px !important;
+  height: 45px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px !important;
+  border: 1px solid #e2e9ed !important;
+  background: #fff !important;
+  color: #173849 !important;
+  box-shadow: 0 9px 22px rgba(8,37,56,.07) !important;
+}
+
+.nh-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 2px 5px;
+  border-radius: 99px;
+  background: #cf4b51;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.nh-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 12px);
+  width: min(370px, calc(100vw - 30px));
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid #e6ebee;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 24px 65px rgba(8,37,56,.20);
+  color: #102a3a;
+}
+
+.nh-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  padding: 16px;
+  border-bottom: 1px solid #edf0f2;
+}
+
+.nh-popover-head strong {
+  font-size: 16px;
+}
+
+html body .nh-bell button.nh-text-button {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 5px;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 6px !important;
+  background: transparent !important;
+  color: #087a70 !important;
+  box-shadow: none !important;
+  font-size: 11px;
+}
+
+.nh-popover-list {
+  max-height: 310px;
+  overflow-y: auto;
+}
+
+html body .nh-bell button.nh-item {
+  display: block !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 13px 16px !important;
+  border: none !important;
+  border-bottom: 1px solid #eff2f3 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  color: #243b4a !important;
+  box-shadow: none !important;
+  text-align: left;
+  font-weight: normal;
+}
+
+html body .nh-bell button.nh-item.unread {
+  background: #f0faf7 !important;
+}
+
+.nh-item strong,
+.nh-item span {
+  display: block;
+}
+
+.nh-item strong {
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.nh-item span {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.nh-error,
+.nh-empty {
+  padding: 18px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.nh-error {
+  color: #9a3434;
+}
+
+.nh-view-all {
+  display: block;
+  padding: 14px;
+  color: #087a70;
+  font-size: 13px;
+  font-weight: 850;
+  text-decoration: none;
+  text-align: center;
+}
+
+.nh-page {
+  padding-bottom: 30px;
+}
+
+.nh-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.nh-page-head > svg {
+  color: #d6a84f;
+}
+
+.nh-eyebrow,
+.nh-type {
+  color: #087a70;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.nh-page-head h2 {
+  margin: 8px 0;
+  color: #102a3a;
+  font-size: 27px;
+}
+
+.nh-page-head p,
+.nh-page-item p,
+.nh-page-item small {
+  color: #667085;
+  line-height: 1.6;
+}
+
+.nh-toolbar,
+.nh-toolbar > div,
+.nh-item-actions,
+.nh-pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nh-toolbar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+html body .nh-page button.nh-tab,
+html body .nh-page button.nh-light,
+html body .nh-page button.nh-read-all,
+html body .nh-page button.nh-open {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 10px 13px !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 7px;
+  border-radius: 11px !important;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+html body .nh-page button.nh-tab,
+html body .nh-page button.nh-light {
+  background: #e8f6f2 !important;
+  color: #087a70 !important;
+  box-shadow: none !important;
+}
+
+html body .nh-page button.nh-tab.active,
+html body .nh-page button.nh-open,
+html body .nh-page button.nh-read-all {
+  background: linear-gradient(
+    110deg,
+    #092b3e,
+    #087a70
+  ) !important;
+  color: #fff !important;
+}
+
+.nh-page-error {
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff0f0;
+  color: #9b2d35;
+  margin-bottom: 18px;
+}
+
+.nh-page-empty {
+  text-align: center;
+  padding: 35px;
+}
+
+.nh-page-empty svg {
+  color: #087a70;
+}
+
+.nh-page-empty h3 {
+  margin: 10px 0;
+}
+
+.nh-page-list {
+  display: grid;
+  gap: 12px;
+}
+
+.nh-page-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid #e7ecef;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 27px rgba(8,37,56,.05);
+}
+
+.nh-page-item.unread {
+  border-left: 4px solid #087a70;
+  background: #f8fcfb;
+}
+
+.nh-page-item h3 {
+  margin: 8px 0 4px;
+  color: #102a3a;
+  font-size: 17px;
+}
+
+.nh-page-item small {
+  display: block;
+  margin-top: 7px;
+  font-size: 12px;
+}
+
+.nh-pagination {
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.nh-page button:disabled,
+.nh-bell button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .nh-page-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .topbar > .nh-bell {
+    margin-left: 0;
+  }
+}
