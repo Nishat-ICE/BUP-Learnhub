@@ -32,7 +32,7 @@ export default function LeadershipReport({ report }) {
     ["Calendar events", report.calendarEvents],
     ["Class reschedules", report.classReschedules],
     ["Published policies", report.publishedPolicies],
-    ["Average grade", report.averageGrade ?? "â€”"],
+    ["Average grade", report.averageGrade ?? "-"],
     ["Learning materials", report.materials]
   ];
 
@@ -89,10 +89,10 @@ export default function LeadershipReport({ report }) {
                     <td>{course.students}</td>
                     <td>{course.assignments}</td>
                     <td>{course.submissions}</td>
-                    <td>{course.averageGrade ?? "â€”"}</td>
+                    <td>{course.averageGrade ?? "-"}</td>
                     <td>
                       {course.submissionRate === null
-                        ? "â€”"
+                        ? "-"
                         : `${course.submissionRate}%`}
                     </td>
                   </tr>
@@ -102,9 +102,9 @@ export default function LeadershipReport({ report }) {
           </div>
         )}
         <p className="lead-footnote">
-          Submission rate = received submissions Ã·
-          (course assignments Ã— enrolled students).
-          â€œâ€”â€ means there is not enough data yet.
+          Submission rate = received submissions /
+          (course assignments Ã- enrolled students).
+          "-" means there is not enough data yet.
         </p>
       </div>
     </>

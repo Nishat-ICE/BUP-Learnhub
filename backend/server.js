@@ -2,9 +2,17 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
+const { startQuizAutoSubmit } = require("./services/quizAutoSubmit");
+const { startTheoryAutoSubmit } = require("./services/theoryAutoSubmit");
 
 dotenv.config();
-connectDB();
+connectDB().then(() => {
+  startQuizAutoSubmit();
+  startTheoryAutoSubmit();
+}).catch((error) => {
+  console.error("Database/quiz worker startup failed:", error);
+  process.exit(1);
+});
 
 const app = express();
 
@@ -61,10 +69,14 @@ app.use("/api/password-reset", require("./routes/passwordResetRoutes"));
 app.use("/api/materials", require("./routes/materialRoutes"));
 
 app.use("/api/quizzes", require("./routes/quizRoutes"));
+app.use("/api/theory-quizzes", require("./routes/theoryQuizRoutes"));
 
 app.use("/api/discussions", require("./routes/discussionRoutes"));
 
 app.use("/api/notifications", require("./routes/notificationRoutes"));
+
+app.use("/api/routines", require("./routes/routineRoutes"));
+
 
 const PORT = process.env.PORT || 5000;
 

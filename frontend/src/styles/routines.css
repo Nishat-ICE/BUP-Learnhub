@@ -1,0 +1,241 @@
+.routine-page {
+  padding-bottom: 30px;
+  color: #102a3a;
+}
+
+.routine-hero,
+.routine-heading,
+.routine-card-top,
+.routine-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.routine-hero > svg,
+.routine-empty > svg {
+  color: #d6a84f;
+  flex-shrink: 0;
+}
+
+.routine-hero h2 {
+  margin: 8px 0;
+  font-size: 28px;
+}
+
+.routine-hero p,
+.routine-description,
+.routine-empty {
+  color: #667085;
+  line-height: 1.65;
+}
+
+.routine-eyebrow {
+  color: #087a70;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+}
+
+.routine-message {
+  padding: 13px 16px;
+  margin-bottom: 18px;
+  border-radius: 12px;
+  font-weight: 750;
+}
+
+.routine-message.success {
+  background: #e7f7ef;
+  color: #176344;
+}
+
+.routine-message.error {
+  background: #fff0f0;
+  color: #982d35;
+}
+
+.routine-heading {
+  margin-bottom: 18px;
+}
+
+.routine-heading h3 {
+  margin: 0 0 5px;
+}
+
+.routine-count {
+  color: #087a70;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.routine-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+  align-items: end;
+}
+
+.routine-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.routine-form input,
+.routine-form select,
+.routine-form textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #dfe7e9;
+  border-radius: 11px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  outline: none;
+}
+
+.routine-form input:focus,
+.routine-form select:focus,
+.routine-form textarea:focus {
+  border-color: #087a70;
+  box-shadow: 0 0 0 4px rgba(8, 122, 112, .1);
+}
+
+.routine-form input[type="file"] {
+  border-style: dashed;
+  background: #f8fbfa;
+  cursor: pointer;
+}
+
+.routine-form small,
+.routine-file-name {
+  color: #667085;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.routine-full {
+  grid-column: 1 / -1;
+}
+
+.routine-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.routine-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #e6ecee;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #fff, #fbfcfd);
+  box-shadow: 0 10px 26px rgba(8, 37, 56, .05);
+}
+
+.routine-file-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  background: #e7f6f2;
+  color: #087a70;
+}
+
+.routine-published {
+  padding: 6px 10px;
+  border-radius: 99px;
+  background: #e7f6ef;
+  color: #176344;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.routine-card h4 {
+  margin: 15px 0 7px;
+  font-size: 17px;
+}
+
+.routine-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.routine-meta {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.routine-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.routine-empty {
+  text-align: center;
+  padding: 24px 10px;
+}
+
+html body .routine-page button.routine-primary,
+html body .routine-page button.routine-secondary,
+html body .routine-page button.routine-danger {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 10px 14px !important;
+  border-radius: 11px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+html body .routine-page button.routine-primary {
+  background: linear-gradient(110deg, #092b3e, #087a70) !important;
+  color: #fff !important;
+}
+
+html body .routine-page button.routine-secondary {
+  background: #e8f6f2 !important;
+  color: #087a70 !important;
+  box-shadow: none !important;
+}
+
+html body .routine-page button.routine-danger {
+  background: #fff0f1 !important;
+  color: #a5323c !important;
+  box-shadow: none !important;
+}
+
+.routine-page button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .routine-form,
+  .routine-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .routine-full {
+    grid-column: auto;
+  }
+
+  .routine-hero,
+  .routine-heading {
+    align-items: flex-start;
+  }
+}

@@ -159,7 +159,7 @@ router.post(
       password.length > 128
     ) {
       return res.status(400).json({
-        message: "New password must be 8â€“128 characters."
+        message: "New password must be 8-128 characters."
       });
     }
 

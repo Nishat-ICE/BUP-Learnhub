@@ -8,12 +8,15 @@ const initialForm = {
   title: "",
   code: "",
   description: "",
-  credit: "3"
+  credit: "3",
+  facultyEmail: ""
 };
 
 const Courses = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userId = String(user.id || user._id || "");
+  const isStaff = user.role === "staff";
+  const canCreate = user.role === "faculty" || user.role === "staff";
 
   const [courses, setCourses] = useState([]);
   const [form, setForm] = useState(initialForm);
@@ -21,8 +24,6 @@ const Courses = () => {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState(null);
-
-  const canCreate = user.role === "faculty" || user.role === "admin";
 
   const load = async () => {
     const response = await api.get("/courses");
@@ -51,10 +52,18 @@ const Courses = () => {
     setNotice(null);
 
     try {
+      const payload = {
+        title: form.title,
+        code: form.code,
+        description: form.description,
+        credit: form.credit,
+        ...(isStaff ? { facultyEmail: form.facultyEmail } : {})
+      };
+
       if (editingId) {
-        await api.put(`/courses/${editingId}`, form);
+        await api.put(`/courses/${editingId}`, payload);
       } else {
-        await api.post("/courses", form);
+        await api.post("/courses", payload);
       }
 
       const message = editingId ? "Course updated." : "Course created.";
@@ -77,7 +86,8 @@ const Courses = () => {
       title: course.title || "",
       code: course.code || "",
       description: course.description || "",
-      credit: String(course.credit ?? 3)
+      credit: String(course.credit ?? 3),
+      facultyEmail: course.faculty?.email || ""
     });
     setNotice(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -143,9 +153,7 @@ const Courses = () => {
               Course title
               <input
                 value={form.title}
-                onChange={(e) =>
-                  setForm({ ...form, title: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="e.g. Database Management Systems"
                 required
               />
@@ -155,9 +163,7 @@ const Courses = () => {
               Course code
               <input
                 value={form.code}
-                onChange={(e) =>
-                  setForm({ ...form, code: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
                 placeholder="e.g. ICT-301"
                 required
               />
@@ -171,12 +177,25 @@ const Courses = () => {
                 max="8"
                 step="0.5"
                 value={form.credit}
-                onChange={(e) =>
-                  setForm({ ...form, credit: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, credit: e.target.value })}
                 required
               />
             </label>
+
+            {isStaff && (
+              <label className="crud-wide">
+                Faculty Email (Assign Course To)
+                <input
+                  type="email"
+                  value={form.facultyEmail}
+                  onChange={(e) =>
+                    setForm({ ...form, facultyEmail: e.target.value })
+                  }
+                  placeholder="Enter the Faculty's registered email address"
+                  required
+                />
+              </label>
+            )}
 
             <label className="crud-wide">
               Description
@@ -200,19 +219,22 @@ const Courses = () => {
       {loading && <div className="panel">Loading courses...</div>}
 
       {!loading && courses.length === 0 && (
-        <div className="panel">No courses created yet.</div>
+        <div className="panel">
+          {user.role === "faculty"
+            ? "No courses are assigned to your faculty account yet."
+            : "No courses created yet."}
+        </div>
       )}
 
       <div className="crud-grid">
         {courses.map((course) => {
           const ownerId = String(course.faculty?._id || "");
           const canManage =
-            user.role === "admin" ||
+            user.role === "staff" ||
             (user.role === "faculty" && ownerId === userId);
 
           const enrolled = (course.students || []).some(
-            (student) =>
-              String(student._id || student) === userId
+            (student) => String(student._id || student) === userId
           );
 
           return (
@@ -225,10 +247,15 @@ const Courses = () => {
               <h3>{course.title}</h3>
               <p>{course.description || "No description provided."}</p>
 
-              <small>Faculty: {course.faculty?.name || "Not assigned"}</small>
+              <small>
+                Faculty: {course.faculty?.name || "Not assigned"}
+                {isStaff && course.faculty?.email
+                  ? ` (${course.faculty.email})`
+                  : ""}
+              </small>
               <small>
                 <Users size={14} />
-                {course.students?.length || 0} enrolled Â· {course.credit || 3} credits
+                {course.students?.length || 0} enrolled | {course.credit || 3} credits
               </small>
 
               {user.role === "student" && (

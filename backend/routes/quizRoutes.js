@@ -1,16 +1,28 @@
+const { getDepartmentCourseIds } = require("../services/departmentScope");
 const express = require("express");
 const mongoose = require("mongoose");
 
 const Quiz = require("../models/Quiz");
 const QuizAttempt = require("../models/QuizAttempt");
 const Course = require("../models/Course");
-const { protect, authorize } = require("../middleware/authMiddleware");
+
+const {
+  protect,
+  authorize
+} = require("../middleware/authMiddleware");
 
 const {
   validateQuiz,
   visibleQuestions,
-  markQuiz
+  normalizeAnswers,
+  markQuiz,
+  studentReview
 } = require("../services/quizRules");
+
+const {
+  finalizeExpiredAttempt,
+  finalizeExpiredAttempts
+} = require("../services/quizAutoSubmit");
 
 const router = express.Router();
 router.use(protect);
@@ -18,10 +30,90 @@ router.use(protect);
 const wrap = (handler) => (req, res, next) =>
   Promise.resolve(handler(req, res, next)).catch(next);
 
-const isId = (value) => mongoose.isValidObjectId(value);
+const validId = (value) =>
+  mongoose.isValidObjectId(value);
 
-async function ownFacultyQuiz(req, res) {
-  if (!isId(req.params.id)) {
+const quizDuration = (quiz) =>
+  Math.max(
+    1,
+    Math.min(600, Number(quiz.durationMinutes) || 15)
+  );
+
+function isFinal(attempt) {
+  return Boolean(
+    attempt &&
+    (
+      !attempt.status ||
+      ["submitted", "expired"].includes(attempt.status)
+    )
+  );
+}
+
+function publishedResult(quiz, attempt) {
+  if (!quiz.resultsPublished || !isFinal(attempt)) {
+    return null;
+  }
+
+  return {
+    score: attempt.score,
+    maxScore: attempt.maxScore,
+    feedback: attempt.feedback || ""
+  };
+}
+
+function summary(quiz) {
+  return {
+    _id: quiz._id,
+    course: quiz.course,
+    title: quiz.title,
+    instructions: quiz.instructions,
+    closesAt: quiz.closesAt,
+    durationMinutes: quizDuration(quiz),
+    isPublished: quiz.isPublished,
+    resultsPublished: quiz.resultsPublished,
+    questionCount: quiz.questions.length,
+    maxScore: quiz.questions.reduce(
+      (sum, question) => sum + question.points,
+      0
+    )
+  };
+}
+
+const finalFilter = reportFilter;
+function reportFilter() {
+  return {
+    $or: [
+      { status: { $in: ["submitted", "expired"] } },
+      { status: { $exists: false } }
+    ]
+  };
+}
+
+function errorResponse(res, error) {
+  if (error.code === 11000) {
+    return res.status(409).json({
+      message: "Only one attempt is allowed per student."
+    });
+  }
+
+  if (
+    error.name === "ValidationError" ||
+    error.name === "CastError"
+  ) {
+    return res.status(400).json({
+      message: error.message
+    });
+  }
+
+  console.error("Quiz request failed:", error);
+
+  return res.status(500).json({
+    message: "Quiz request failed."
+  });
+}
+
+async function getFacultyQuiz(req, res) {
+  if (!validId(req.params.id)) {
     res.status(400).json({ message: "Invalid quiz ID." });
     return null;
   }
@@ -33,14 +125,14 @@ async function ownFacultyQuiz(req, res) {
     return null;
   }
 
-  const owner = await Course.exists({
+  const owned = await Course.exists({
     _id: quiz.course,
     faculty: req.user._id
   });
 
-  if (!owner) {
+  if (!owned) {
     res.status(403).json({
-      message: "You can manage only your own course quizzes."
+      message: "Only this course's faculty can manage the quiz."
     });
     return null;
   }
@@ -48,8 +140,8 @@ async function ownFacultyQuiz(req, res) {
   return quiz;
 }
 
-async function ownStudentQuiz(req, res) {
-  if (!isId(req.params.id)) {
+async function getStudentQuiz(req, res) {
+  if (!validId(req.params.id)) {
     res.status(400).json({ message: "Invalid quiz ID." });
     return null;
   }
@@ -81,67 +173,71 @@ async function ownStudentQuiz(req, res) {
   return quiz;
 }
 
-function listing(quiz) {
-  return {
-    _id: quiz._id,
-    course: quiz.course,
-    title: quiz.title,
-    instructions: quiz.instructions,
-    closesAt: quiz.closesAt,
-    isPublished: quiz.isPublished,
-    resultsPublished: quiz.resultsPublished,
-    questionCount: quiz.questions.length,
-    maxScore: quiz.questions.reduce(
-      (sum, question) => sum + question.points, 0
-    )
-  };
+async function findAttempt(quizId, studentId) {
+  return QuizAttempt.findOne({
+    quiz: quizId,
+    student: studentId
+  });
 }
 
-// Staff: participation numbers only.
-// Admin/Authority: aggregate report; no student names or answers.
+// Staff gets participation counts only.
+// Admin and Authority get aggregate reports.
 router.get(
   "/report",
   authorize("staff", "admin", "authority"),
   wrap(async (req, res) => {
+    await finalizeExpiredAttempts();
+
     const staff = req.user.role === "staff";
 
+    const staffCourseIds = staff
+      ? await getDepartmentCourseIds(req.user.department)
+      : [];
+
     const quizzes = await Quiz.find(
-      staff ? { isPublished: true } : {}
+      staff ? { isPublished: true, course: { $in: staffCourseIds } } : {}
     )
       .populate("course", "code title students")
       .lean();
 
-    const ids = quizzes.map((quiz) => quiz._id);
+    const quizIds = quizzes.map((quiz) => quiz._id);
 
-    const aggregates = ids.length
+    const groups = quizIds.length
       ? await QuizAttempt.aggregate([
-          { $match: { quiz: { $in: ids } } },
+          {
+            $match: {
+              quiz: { $in: quizIds },
+              ...reportFilter()
+            }
+          },
           {
             $group: {
               _id: "$quiz",
-              submitted: { $sum: 1 },
+              count: { $sum: 1 },
               averageScore: { $avg: "$score" }
             }
           }
         ])
       : [];
 
-    const counts = new Map(
-      aggregates.map((item) => [
+    const groupMap = new Map(
+      groups.map((item) => [
         String(item._id),
         item
       ])
     );
 
     const rows = quizzes.map((quiz) => {
-      const count = counts.get(String(quiz._id));
-      const submitted = count?.submitted || 0;
+      const group = groupMap.get(String(quiz._id));
+      const submitted = group?.count || 0;
       const enrolled = quiz.course?.students?.length || 0;
+
       const maxScore = quiz.questions.reduce(
-        (sum, question) => sum + question.points, 0
+        (sum, question) => sum + question.points,
+        0
       );
 
-      const basic = {
+      const row = {
         id: quiz._id,
         title: quiz.title,
         courseCode: quiz.course?.code || "Unknown",
@@ -154,20 +250,19 @@ router.get(
               100,
               Math.round((submitted / enrolled) * 100)
             )
-          : null,
-        resultsPublished: quiz.resultsPublished
+          : null
       };
 
-      if (staff) return basic;
+      if (staff) return row;
 
       return {
-        ...basic,
+        ...row,
         averagePercent:
           quiz.resultsPublished &&
           submitted > 0 &&
           maxScore > 0
             ? Math.round(
-                (count.averageScore / maxScore) * 100
+                (group.averageScore / maxScore) * 100
               )
             : null
       };
@@ -176,18 +271,22 @@ router.get(
     return res.json({
       total: quizzes.length,
       submissions: rows.reduce(
-        (sum, item) => sum + item.submitted, 0
+        (sum, row) => sum + row.submitted,
+        0
       ),
       rows
     });
   })
 );
 
-// Faculty: own courses. Student: enrolled courses' published quizzes.
+// Student gets published quizzes in enrolled courses.
+// Faculty gets quizzes for own courses.
 router.get(
   "/",
   authorize("student", "faculty"),
   wrap(async (req, res) => {
+    await finalizeExpiredAttempts();
+
     const student = req.user.role === "student";
 
     const courseIds = await Course.distinct(
@@ -205,19 +304,21 @@ router.get(
       .sort({ createdAt: -1 })
       .lean();
 
-    const ids = quizzes.map((quiz) => quiz._id);
+    const quizIds = quizzes.map((quiz) => quiz._id);
 
     if (student) {
-      const attempts = ids.length
+      const attempts = quizIds.length
         ? await QuizAttempt.find({
-            student: req.user._id,
-            quiz: { $in: ids }
+            quiz: { $in: quizIds },
+            student: req.user._id
           })
-            .select("quiz score maxScore feedback")
+            .select(
+              "quiz score maxScore feedback status expiresAt"
+            )
             .lean()
         : [];
 
-      const byQuiz = new Map(
+      const attemptMap = new Map(
         attempts.map((attempt) => [
           String(attempt.quiz),
           attempt
@@ -226,27 +327,37 @@ router.get(
 
       return res.json(
         quizzes.map((quiz) => {
-          const attempt = byQuiz.get(String(quiz._id));
+          const attempt = attemptMap.get(String(quiz._id));
+          const final = isFinal(attempt);
 
           return {
-            ...listing(quiz),
-            attempted: Boolean(attempt),
-            result:
-              attempt && quiz.resultsPublished
-                ? {
-                    score: attempt.score,
-                    maxScore: attempt.maxScore,
-                    feedback: attempt.feedback || ""
-                  }
-                : null
+            ...summary(quiz),
+            attempted: final,
+            inProgress: Boolean(
+              attempt?.status === "in_progress" &&
+              attempt.expiresAt &&
+              new Date(attempt.expiresAt).getTime() > Date.now()
+            ),
+            closed:
+              new Date(quiz.closesAt).getTime() <= Date.now() &&
+              !attempt,
+            reviewAvailable: Boolean(
+              quiz.resultsPublished && final
+            ),
+            result: publishedResult(quiz, attempt)
           };
         })
       );
     }
 
-    const counts = ids.length
+    const groups = quizIds.length
       ? await QuizAttempt.aggregate([
-          { $match: { quiz: { $in: ids } } },
+          {
+            $match: {
+              quiz: { $in: quizIds },
+              ...reportFilter()
+            }
+          },
           {
             $group: {
               _id: "$quiz",
@@ -256,8 +367,8 @@ router.get(
         ])
       : [];
 
-    const byQuiz = new Map(
-      counts.map((item) => [
+    const countMap = new Map(
+      groups.map((item) => [
         String(item._id),
         item.count
       ])
@@ -265,8 +376,8 @@ router.get(
 
     return res.json(
       quizzes.map((quiz) => ({
-        ...listing(quiz),
-        attemptCount: byQuiz.get(String(quiz._id)) || 0
+        ...summary(quiz),
+        attemptCount: countMap.get(String(quiz._id)) || 0
       }))
     );
   })
@@ -276,7 +387,7 @@ router.post(
   "/",
   authorize("faculty"),
   wrap(async (req, res) => {
-    if (!isId(req.body?.course)) {
+    if (!validId(req.body?.course)) {
       return res.status(400).json({
         message: "Select a valid course."
       });
@@ -289,7 +400,7 @@ router.post(
 
     if (!course) {
       return res.status(403).json({
-        message: "Create quizzes only for your own course."
+        message: "Create quizzes only for your own courses."
       });
     }
 
@@ -316,54 +427,313 @@ router.post(
   })
 );
 
-// Student receives questions WITHOUT correct answers.
+// Start or resume the server-timed attempt.
 router.get(
   "/:id/play",
   authorize("student"),
   wrap(async (req, res) => {
-    const quiz = await ownStudentQuiz(req, res);
+    const quiz = await getStudentQuiz(req, res);
     if (!quiz) return;
 
-    const attempt = await QuizAttempt.findOne({
-      quiz: quiz._id,
-      student: req.user._id
-    }).select("score maxScore feedback");
+    let attempt = await findAttempt(
+      quiz._id,
+      req.user._id
+    );
 
-    const open = quiz.closesAt.getTime() > Date.now();
+    if (
+      attempt?.status === "in_progress" &&
+      attempt.expiresAt &&
+      attempt.expiresAt.getTime() <= Date.now()
+    ) {
+      await finalizeExpiredAttempt(attempt._id);
+      attempt = await findAttempt(quiz._id, req.user._id);
+    }
+
+    if (isFinal(attempt)) {
+      return res.json({
+        _id: quiz._id,
+        title: quiz.title,
+        closesAt: quiz.closesAt,
+        attempted: true,
+        expired: attempt.status === "expired",
+        result: publishedResult(quiz, attempt),
+        reviewAvailable: Boolean(quiz.resultsPublished),
+        questions: []
+      });
+    }
+
+    if (
+      !attempt &&
+      quiz.closesAt.getTime() <= Date.now()
+    ) {
+      return res.json({
+        _id: quiz._id,
+        closed: true,
+        message: "The quiz deadline has passed."
+      });
+    }
+
+    if (!attempt) {
+      const now = new Date();
+
+      const durationMinutes = Math.max(
+        1,
+        Math.min(600, Number(quiz.durationMinutes) || 15)
+      );
+
+      // The earlier of duration expiry and Faculty-set deadline wins.
+      const expiresAt = new Date(
+        Math.min(
+          now.getTime() + durationMinutes * 60000,
+          quiz.closesAt.getTime()
+        )
+      );
+
+      await QuizAttempt.init();
+
+      try {
+        attempt = await QuizAttempt.create({
+          quiz: quiz._id,
+          course: quiz.course,
+          student: req.user._id,
+          answers: [],
+          score: 0,
+          maxScore: quiz.questions.reduce(
+            (sum, question) => sum + question.points,
+            0
+          ),
+          status: "in_progress",
+          startedAt: now,
+          expiresAt,
+          submittedAt: expiresAt
+        });
+      } catch (error) {
+        if (error.code !== 11000) throw error;
+
+        attempt = await findAttempt(
+          quiz._id,
+          req.user._id
+        );
+      }
+    }
+
+    if (
+      !attempt ||
+      attempt.status !== "in_progress" ||
+      !attempt.expiresAt
+    ) {
+      return res.status(409).json({
+        message: "This attempt is no longer active."
+      });
+    }
+
+    const serverNow = Date.now();
 
     return res.json({
       _id: quiz._id,
       title: quiz.title,
       instructions: quiz.instructions,
       closesAt: quiz.closesAt,
-      attempted: Boolean(attempt),
-      open,
-      questions:
-        !attempt && open
-          ? visibleQuestions(quiz.questions)
-          : [],
-      result:
-        attempt && quiz.resultsPublished
-          ? {
-              score: attempt.score,
-              maxScore: attempt.maxScore,
-              feedback: attempt.feedback || ""
-            }
-          : null
+      durationMinutes: quizDuration(quiz),
+      expiresAt: attempt.expiresAt,
+      serverNow: new Date(serverNow).toISOString(),
+      secondsLeft: Math.max(
+        0,
+        Math.ceil(
+          (attempt.expiresAt.getTime() - serverNow) / 1000
+        )
+      ),
+      savedAnswers: (attempt.answers || []).map((answer) => ({
+        questionId: String(answer.questionId),
+        selectedIndex: answer.selectedIndex
+      })),
+      questions: visibleQuestions(quiz.questions)
     });
   })
 );
 
+// Save each answer so server can submit answers if timer expires.
+router.patch(
+  "/:id/answers",
+  authorize("student"),
+  wrap(async (req, res) => {
+    const quiz = await getStudentQuiz(req, res);
+    if (!quiz) return;
+
+    let attempt = await findAttempt(quiz._id, req.user._id);
+
+    if (!attempt) {
+      return res.status(409).json({
+        message: "Start the quiz before answering."
+      });
+    }
+
+    if (attempt.status === "in_progress") {
+      await finalizeExpiredAttempt(attempt._id);
+      attempt = await findAttempt(quiz._id, req.user._id);
+    }
+
+    if (
+      !attempt ||
+      attempt.status !== "in_progress" ||
+      !attempt.expiresAt ||
+      attempt.expiresAt.getTime() <= Date.now()
+    ) {
+      return res.status(409).json({
+        message: "The quiz timer ended. Saved answers are submitted."
+      });
+    }
+
+    const questionId =
+      typeof req.body?.questionId === "string"
+        ? req.body.questionId
+        : "";
+
+    const question = quiz.questions.id(questionId);
+    const selectedIndex = Number(req.body?.selectedIndex);
+
+    if (
+      !question ||
+      !Number.isInteger(selectedIndex) ||
+      selectedIndex < 0 ||
+      selectedIndex >= question.options.length
+    ) {
+      return res.status(400).json({
+        message: "Invalid answer selection."
+      });
+    }
+
+    const answerArray = [...(attempt.answers || [])];
+
+    const existingIndex = answerArray.findIndex(
+      (answer) =>
+        String(answer.questionId) === questionId
+    );
+
+    const updatedAnswer = {
+      questionId: question._id,
+      selectedIndex
+    };
+
+    if (existingIndex >= 0) {
+      answerArray[existingIndex] = updatedAnswer;
+    } else {
+      answerArray.push(updatedAnswer);
+    }
+
+    const updated = await QuizAttempt.findOneAndUpdate(
+      {
+        _id: attempt._id,
+        status: "in_progress",
+        expiresAt: { $gt: new Date() }
+      },
+      { $set: { answers: answerArray } },
+      { new: true }
+    );
+
+    if (!updated) {
+      await finalizeExpiredAttempt(attempt._id);
+
+      return res.status(409).json({
+        message: "The quiz timer ended. Saved answers are submitted."
+      });
+    }
+
+    return res.json({
+      message: "Answer saved.",
+      secondsLeft: Math.max(
+        0,
+        Math.ceil(
+          (updated.expiresAt.getTime() - Date.now()) / 1000
+        )
+      )
+    });
+  })
+);
+
+// Browser calls this at zero. Server timer remains authoritative.
+router.post(
+  "/:id/timeout",
+  authorize("student"),
+  wrap(async (req, res) => {
+    const quiz = await getStudentQuiz(req, res);
+    if (!quiz) return;
+
+    const attempt = await findAttempt(
+      quiz._id,
+      req.user._id
+    );
+
+    if (!attempt) {
+      return res.status(404).json({
+        message: "Quiz attempt not found."
+      });
+    }
+
+    if (isFinal(attempt)) {
+      return res.json({
+        message:
+          "Attempt submitted. Marks appear after Faculty publishes results."
+      });
+    }
+
+    if (
+      !attempt.expiresAt ||
+      attempt.expiresAt.getTime() > Date.now()
+    ) {
+      return res.status(409).json({
+        message: "The quiz timer is still running.",
+        secondsLeft: attempt.expiresAt
+          ? Math.ceil(
+              (attempt.expiresAt.getTime() - Date.now()) / 1000
+            )
+          : null
+      });
+    }
+
+    await finalizeExpiredAttempt(attempt._id);
+
+    return res.json({
+      message:
+        "Time expired. Saved answers were auto-submitted; marks appear after Faculty publishes results."
+    });
+  })
+);
+
+// Manual submission requires every question to be answered.
 router.post(
   "/:id/submit",
   authorize("student"),
   wrap(async (req, res) => {
-    const quiz = await ownStudentQuiz(req, res);
+    const quiz = await getStudentQuiz(req, res);
     if (!quiz) return;
 
-    if (quiz.closesAt.getTime() <= Date.now()) {
+    const attempt = await findAttempt(
+      quiz._id,
+      req.user._id
+    );
+
+    if (!attempt) {
       return res.status(409).json({
-        message: "Quiz deadline has passed."
+        message: "Start the quiz before submitting."
+      });
+    }
+
+    if (isFinal(attempt)) {
+      return res.status(409).json({
+        message:
+          "This attempt is already submitted. Marks appear after Faculty publishes results."
+      });
+    }
+
+    if (
+      !attempt.expiresAt ||
+      attempt.expiresAt.getTime() <= Date.now()
+    ) {
+      await finalizeExpiredAttempt(attempt._id);
+
+      return res.status(409).json({
+        message: "Time expired. Saved answers were auto-submitted."
       });
     }
 
@@ -372,7 +742,8 @@ router.post(
     try {
       marked = markQuiz(
         quiz.questions,
-        req.body?.answers
+        req.body?.answers,
+        false
       );
     } catch (error) {
       return res.status(400).json({
@@ -380,37 +751,94 @@ router.post(
       });
     }
 
-    // Database unique index also prevents concurrent double attempts.
-    await QuizAttempt.init();
+    const completed = await QuizAttempt.findOneAndUpdate(
+      {
+        _id: attempt._id,
+        status: "in_progress",
+        expiresAt: { $gt: new Date() }
+      },
+      {
+        $set: {
+          answers: marked.answers,
+          score: marked.score,
+          maxScore: marked.maxScore,
+          status: "submitted",
+          submittedAt: new Date()
+        }
+      },
+      { new: true }
+    );
 
-    await QuizAttempt.create({
-      quiz: quiz._id,
-      course: quiz.course,
-      student: req.user._id,
-      ...marked
-    });
+    if (!completed) {
+      await finalizeExpiredAttempt(attempt._id);
 
+      return res.status(409).json({
+        message: "Time expired. Saved answers were auto-submitted."
+      });
+    }
+
+    // Do not return marks to the student before Faculty publishes.
     return res.status(201).json({
       message:
-        "Submitted. Faculty will publish the result."
+        "Quiz submitted. Marks and answer review appear after Faculty publishes results."
     });
   })
 );
 
+// Student review: correct answers are hidden until Faculty publishes.
+router.get(
+  "/:id/review",
+  authorize("student"),
+  wrap(async (req, res) => {
+    const quiz = await getStudentQuiz(req, res);
+    if (!quiz) return;
+
+    if (!quiz.resultsPublished) {
+      return res.status(403).json({
+        message:
+          "Answer review is available after Faculty publishes results."
+      });
+    }
+
+    const attempt = await findAttempt(
+      quiz._id,
+      req.user._id
+    );
+
+    if (!isFinal(attempt)) {
+      return res.status(404).json({
+        message: "Submitted quiz attempt not found."
+      });
+    }
+
+    return res.json({
+      title: quiz.title,
+      score: attempt.score,
+      maxScore: attempt.maxScore,
+      feedback: attempt.feedback || "",
+      questions: studentReview(
+        quiz.questions,
+        attempt.answers
+      )
+    });
+  })
+);
+
+// Faculty can inspect marks and answers before publishing.
 router.get(
   "/:id/attempts",
   authorize("faculty"),
   wrap(async (req, res) => {
-    const quiz = await ownFacultyQuiz(req, res);
+    const quiz = await getFacultyQuiz(req, res);
     if (!quiz) return;
 
+    await finalizeExpiredAttempts();
+
     const attempts = await QuizAttempt.find({
-      quiz: quiz._id
+      quiz: quiz._id,
+      ...finalFilter()
     })
-      .populate(
-        "student",
-        "name email studentId"
-      )
+      .populate("student", "name email studentId")
       .sort({ submittedAt: -1 });
 
     return res.json(
@@ -420,7 +848,8 @@ router.get(
         answers: attempt.answers,
         score: attempt.score,
         maxScore: attempt.maxScore,
-        feedback: attempt.feedback,
+        feedback: attempt.feedback || "",
+        status: attempt.status || "submitted",
         submittedAt: attempt.submittedAt
       }))
     );
@@ -431,10 +860,10 @@ router.put(
   "/:id/attempts/:attemptId/feedback",
   authorize("faculty"),
   wrap(async (req, res) => {
-    const quiz = await ownFacultyQuiz(req, res);
+    const quiz = await getFacultyQuiz(req, res);
     if (!quiz) return;
 
-    if (!isId(req.params.attemptId)) {
+    if (!validId(req.params.attemptId)) {
       return res.status(400).json({
         message: "Invalid attempt ID."
       });
@@ -450,14 +879,15 @@ router.put(
 
     if (feedback.length > 1000) {
       return res.status(400).json({
-        message: "Feedback is too long."
+        message: "Feedback must be at most 1000 characters."
       });
     }
 
     const attempt = await QuizAttempt.findOneAndUpdate(
       {
         _id: req.params.attemptId,
-        quiz: quiz._id
+        quiz: quiz._id,
+        ...finalFilter()
       },
       { $set: { feedback } },
       { new: true }
@@ -465,19 +895,71 @@ router.put(
 
     if (!attempt) {
       return res.status(404).json({
-        message: "Attempt not found."
+        message: "Submitted attempt not found."
       });
     }
 
-    return res.json({ message: "Feedback saved." });
+    return res.json({
+      message: "Feedback saved."
+    });
   })
 );
 
+router.post(
+  "/:id/results",
+  authorize("faculty"),
+  wrap(async (req, res) => {
+    const quiz = await getFacultyQuiz(req, res);
+    if (!quiz) return;
+
+    await finalizeExpiredAttempts();
+
+    if (quiz.closesAt.getTime() > Date.now()) {
+      return res.status(409).json({
+        message:
+          "Wait until the quiz closing deadline has passed before publishing results."
+      });
+    }
+
+    const activeAttempts = await QuizAttempt.countDocuments({
+      quiz: quiz._id,
+      status: "in_progress"
+    });
+
+    if (activeAttempts > 0) {
+      return res.status(409).json({
+        message:
+          "Some attempts are still active. Wait for them to finish."
+      });
+    }
+
+    const count = await QuizAttempt.countDocuments({
+      quiz: quiz._id,
+      ...finalFilter()
+    });
+
+    if (!count) {
+      return res.status(409).json({
+        message: "No submitted quiz attempts yet."
+      });
+    }
+
+    quiz.resultsPublished = true;
+    await quiz.save();
+
+    return res.json({
+      message:
+        "Marks, feedback and answer review are now available to students."
+    });
+  })
+);
+
+// Faculty quiz details/edit.
 router.get(
   "/:id",
   authorize("faculty"),
   wrap(async (req, res) => {
-    const quiz = await ownFacultyQuiz(req, res);
+    const quiz = await getFacultyQuiz(req, res);
     if (quiz) return res.json(quiz);
   })
 );
@@ -486,13 +968,12 @@ router.put(
   "/:id",
   authorize("faculty"),
   wrap(async (req, res) => {
-    const quiz = await ownFacultyQuiz(req, res);
+    const quiz = await getFacultyQuiz(req, res);
     if (!quiz) return;
 
     if (await QuizAttempt.exists({ quiz: quiz._id })) {
       return res.status(409).json({
-        message:
-          "Students have attempted this quiz; editing is locked."
+        message: "A quiz with an attempt cannot be edited."
       });
     }
 
@@ -523,13 +1004,12 @@ router.delete(
   "/:id",
   authorize("faculty"),
   wrap(async (req, res) => {
-    const quiz = await ownFacultyQuiz(req, res);
+    const quiz = await getFacultyQuiz(req, res);
     if (!quiz) return;
 
     if (await QuizAttempt.exists({ quiz: quiz._id })) {
       return res.status(409).json({
-        message:
-          "Quiz has student attempts and cannot be deleted."
+        message: "A quiz with student attempts cannot be deleted."
       });
     }
 
@@ -543,13 +1023,13 @@ router.post(
   "/:id/publish",
   authorize("faculty"),
   wrap(async (req, res) => {
-    const quiz = await ownFacultyQuiz(req, res);
+    const quiz = await getFacultyQuiz(req, res);
     if (!quiz) return;
 
     if (quiz.closesAt.getTime() <= Date.now()) {
       return res.status(409).json({
         message:
-          "Closing time passed. Edit it before publishing."
+          "The attempt deadline has passed. Edit the deadline before publishing."
       });
     }
 
@@ -562,38 +1042,10 @@ router.post(
   })
 );
 
-router.post(
-  "/:id/results",
-  authorize("faculty"),
-  wrap(async (req, res) => {
-    const quiz = await ownFacultyQuiz(req, res);
-    if (!quiz) return;
-
-    if (!quiz.isPublished) {
-      return res.status(409).json({
-        message: "Publish the quiz first."
-      });
-    }
-
-    if (!(await QuizAttempt.exists({ quiz: quiz._id }))) {
-      return res.status(409).json({
-        message: "No attempts to publish yet."
-      });
-    }
-
-    quiz.resultsPublished = true;
-    await quiz.save();
-
-    return res.json({
-      message: "Quiz results published."
-    });
-  })
-);
-
 router.use((error, _req, res, _next) => {
   if (error.code === 11000) {
     return res.status(409).json({
-      message: "You have already attempted this quiz."
+      message: "Only one attempt is allowed per student."
     });
   }
 
@@ -606,7 +1058,7 @@ router.use((error, _req, res, _next) => {
     });
   }
 
-  console.error("Quiz error:", error);
+  console.error("Quiz API error:", error);
 
   return res.status(500).json({
     message: "Quiz request failed."

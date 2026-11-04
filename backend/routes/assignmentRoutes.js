@@ -1,3 +1,4 @@
+const { getDepartmentCourseIds } = require("../services/departmentScope");
 const express = require("express");
 const mongoose = require("mongoose");
 const Assignment = require("../models/Assignment");
@@ -24,7 +25,10 @@ router.get("/", protect, async (req, res) => {
   try {
     let filter = {};
 
-    if (req.user.role === "student" || req.user.role === "faculty") {
+    if (req.user.role === "staff") {
+      const deptCourseIds = await getDepartmentCourseIds(req.user.department);
+      filter = { course: { $in: deptCourseIds } };
+    } else if (req.user.role === "student" || req.user.role === "faculty") {
       const courseFilter =
         req.user.role === "student"
           ? { students: req.user._id }

@@ -203,7 +203,7 @@ const Assignments = () => {
                 <option value="">Select course</option>
                 {availableCourses.map((course) => (
                   <option key={course._id} value={course._id}>
-                    {course.code} â€” {course.title}
+                    {course.code} - {course.title}
                   </option>
                 ))}
               </select>
@@ -313,7 +313,7 @@ const Assignments = () => {
                         required={!submissionFile}
                       />
                       <label className="crud-upload">
-                        <span>Attach a file (PDF, DOCX, JPG or PNG Â· max 10 MB)</span>
+                        <span>Attach a file (PDF, DOCX, JPG or PNG | max 10 MB)</span>
                         <input
                           key={fileInputKey}
                           type="file"

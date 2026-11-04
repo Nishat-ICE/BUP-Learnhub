@@ -20,12 +20,37 @@ const quizSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
-    title: { type: String, required: true, trim: true },
-    instructions: { type: String, default: "" },
-    closesAt: { type: Date, required: true },
-    isPublished: { type: Boolean, default: false },
-    resultsPublished: { type: Boolean, default: false },
-    questions: { type: [questionSchema], default: [] }
+    title: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    instructions: {
+      type: String,
+      default: ""
+    },
+    closesAt: {
+      type: Date,
+      required: true
+    },
+    durationMinutes: {
+      type: Number,
+      default: 15,
+      min: 1,
+      max: 600
+    },
+    isPublished: {
+      type: Boolean,
+      default: false
+    },
+    resultsPublished: {
+      type: Boolean,
+      default: false
+    },
+    questions: {
+      type: [questionSchema],
+      default: []
+    }
   },
   { timestamps: true }
 );

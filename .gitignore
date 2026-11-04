@@ -50,3 +50,4 @@ frontend/dist/
 dashboard-backup-*/
 *.backup-*
 *.zip
+/local-setup-files/

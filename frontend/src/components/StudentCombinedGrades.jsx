@@ -33,13 +33,14 @@ const hasQuizResult = (item) =>
   typeof item.result.score === "number" &&
   Number.isFinite(item.result.score) &&
   typeof item.result.maxScore === "number" &&
-  Number.isFinite(item.result.maxScore);
+  item.result.maxScore > 0;
 
 export default function StudentCombinedGrades() {
   const [records, setRecords] = useState({
     grades: [],
     progress: [],
-    quizzes: []
+    quizzes: [],
+    theoryQuizzes: []
   });
 
   const [loading, setLoading] = useState(true);
@@ -50,25 +51,21 @@ export default function StudentCombinedGrades() {
 
     async function load() {
       try {
-        const [gradeResponse, quizResponse] = await Promise.all([
+        const [gradeResponse, quizResponse, theoryResponse] = await Promise.all([
           api.get("/grades/my"),
-          api.get("/quizzes")
+          api.get("/quizzes").catch(() => ({ data: [] })),
+          api.get("/theory-quizzes").catch(() => ({ data: [] }))
         ]);
 
-        const grades = gradeResponse.data?.grades;
-        const progress = gradeResponse.data?.progress;
-        const quizzes = quizResponse.data;
-
-        if (
-          !Array.isArray(grades) ||
-          !Array.isArray(progress) ||
-          !Array.isArray(quizzes)
-        ) {
-          throw new Error("Unexpected academic data.");
-        }
+        const grades = gradeResponse.data?.grades || [];
+        const progress = gradeResponse.data?.progress || [];
+        const quizzes = Array.isArray(quizResponse.data) ? quizResponse.data : [];
+        const theoryQuizzes = Array.isArray(theoryResponse.data)
+          ? theoryResponse.data
+          : [];
 
         if (active) {
-          setRecords({ grades, progress, quizzes });
+          setRecords({ grades, progress, quizzes, theoryQuizzes });
         }
       } catch (requestError) {
         if (active) {
@@ -101,22 +98,23 @@ export default function StudentCombinedGrades() {
     );
   }
 
-  const { grades, progress, quizzes } = records;
+  const { grades, progress, quizzes, theoryQuizzes } = records;
+
+  const allQuizzes = [
+    ...quizzes.map((q) => ({ ...q, kind: "MCQ" })),
+    ...theoryQuizzes.map((tq) => ({ ...tq, kind: "Theory" }))
+  ];
 
   const assignmentSubmitted = grades.length;
-  const attemptedQuizzes = quizzes.filter(
-    (quiz) => quiz.attempted
-  ).length;
+  const attemptedQuizzes = allQuizzes.filter((quiz) => quiz.attempted).length;
 
   const awaiting =
     grades.filter((grade) => !hasAssignmentGrade(grade)).length +
-    quizzes.filter(
-      (quiz) => quiz.attempted && !hasQuizResult(quiz)
-    ).length;
+    allQuizzes.filter((quiz) => quiz.attempted && !hasQuizResult(quiz)).length;
 
   const published =
     grades.filter(hasAssignmentGrade).length +
-    quizzes.filter(hasQuizResult).length;
+    allQuizzes.filter(hasQuizResult).length;
 
   const cards = [
     {
@@ -145,9 +143,14 @@ export default function StudentCombinedGrades() {
     }
   ];
 
+  // Progress Formula: 40% Task Submission + 60% Marks Achieved
   const courseProgress = progress.map((course) => {
-    const courseQuizzes = quizzes.filter(
-      (quiz) => idOf(quiz.course) === idOf(course.courseId)
+    const cId = idOf(course.courseId);
+    const courseQuizzes = allQuizzes.filter(
+      (quiz) => idOf(quiz.course) === cId
+    );
+    const courseAssignGrades = grades.filter(
+      (g) => g.code === course.code
     );
 
     const assignmentTotal = count(course.totalAssignments);
@@ -156,12 +159,59 @@ export default function StudentCombinedGrades() {
       count(course.submitted)
     );
 
-    const quizDone = courseQuizzes.filter(
-      (quiz) => quiz.attempted
-    ).length;
+    const quizDone = courseQuizzes.filter((quiz) => quiz.attempted).length;
+    const totalTasks = assignmentTotal + courseQuizzes.length;
+    const completedTasks = assignmentDone + quizDone;
 
-    const total = assignmentTotal + courseQuizzes.length;
-    const completed = assignmentDone + quizDone;
+    let totalWeighted = 0;
+    const scorePercents = [];
+
+    // Assignments contribution
+    for (let i = 0; i < assignmentTotal; i++) {
+      const g = courseAssignGrades[i];
+      if (g) {
+        if (hasAssignmentGrade(g)) {
+          const mPct = Math.max(0, Math.min(100, Number(g.grade)));
+          scorePercents.push(mPct);
+          totalWeighted += 40 + mPct * 0.6;
+        } else {
+          // Submitted but ungraded -> 40%
+          totalWeighted += 40;
+        }
+      }
+    }
+
+    // Quizzes contribution
+    for (const q of courseQuizzes) {
+      if (q.attempted) {
+        if (hasQuizResult(q)) {
+          const mPct = Math.max(
+            0,
+            Math.min(
+              100,
+              Math.round((q.result.score / q.result.maxScore) * 100)
+            )
+          );
+          scorePercents.push(mPct);
+          totalWeighted += 40 + mPct * 0.6;
+        } else {
+          totalWeighted += 40;
+        }
+      }
+    }
+
+    const completionPct =
+      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : null;
+
+    const marksPct =
+      scorePercents.length > 0
+        ? Math.round(
+            scorePercents.reduce((s, v) => s + v, 0) / scorePercents.length
+          )
+        : null;
+
+    const percentage =
+      totalTasks > 0 ? Math.round(totalWeighted / totalTasks) : null;
 
     return {
       ...course,
@@ -169,9 +219,9 @@ export default function StudentCombinedGrades() {
       assignmentDone,
       quizTotal: courseQuizzes.length,
       quizDone,
-      percentage: total
-        ? Math.min(100, Math.round((completed / total) * 100))
-        : null
+      completionPct,
+      marksPct,
+      percentage
     };
   });
 
@@ -196,14 +246,13 @@ export default function StudentCombinedGrades() {
       </section>
 
       <p className="gq-note">
-        Course progress counts submitted assignments and attempted
-        quizzes. It does not represent average marks.
+        Academic Progress depends on both Task Submission (40% weight) and Achieved Marks in graded assignments &amp; quizzes (60% weight).
       </p>
 
       <section className="grid-two">
         <div className="panel">
           <div className="gq-heading">
-            <h3>Course Progress</h3>
+            <h3>Course Progress (Submission + Marks)</h3>
             <Link to="/courses">View courses</Link>
           </div>
 
@@ -217,11 +266,11 @@ export default function StudentCombinedGrades() {
             <div className="gq-course" key={idOf(course.courseId)}>
               <div className="gq-course-top">
                 <strong>
-                  {course.code} Â· {course.title}
+                  {course.code} | {course.title}
                 </strong>
                 <span>
                   {course.percentage === null
-                    ? "â€”"
+                    ? "-"
                     : `${course.percentage}%`}
                 </span>
               </div>
@@ -235,9 +284,13 @@ export default function StudentCombinedGrades() {
               )}
 
               <small>
-                Assignments {course.assignmentDone}/
-                {course.assignmentTotal} Â· Quizzes{" "}
+                Assignments {course.assignmentDone}/{course.assignmentTotal} | Quizzes{" "}
                 {course.quizDone}/{course.quizTotal}
+                {course.marksPct !== null
+                  ? ` | Marks Avg: ${course.marksPct}%`
+                  : course.completionPct > 0
+                  ? " | Marks: Pending (40% until graded)"
+                  : ""}
               </small>
             </div>
           ))}
@@ -245,7 +298,7 @@ export default function StudentCombinedGrades() {
 
         <div className="panel">
           <div className="gq-heading">
-            <h3>Assignment Grades & Feedback</h3>
+            <h3>Assignment Grades &amp; Feedback</h3>
             <Link to="/assignments">Assignments</Link>
           </div>
 
@@ -273,7 +326,7 @@ export default function StudentCombinedGrades() {
                       <td>
                         {hasAssignmentGrade(grade) ? (
                           <span className="badge graded">
-                            {grade.grade}
+                            {grade.grade}/100
                           </span>
                         ) : (
                           <span className="badge pending">
@@ -281,7 +334,7 @@ export default function StudentCombinedGrades() {
                           </span>
                         )}
                       </td>
-                      <td>{grade.feedback || "â€”"}</td>
+                      <td>{grade.feedback || "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -293,7 +346,7 @@ export default function StudentCombinedGrades() {
 
       <section className="panel">
         <div className="gq-heading">
-          <h3>Quiz Results & Feedback</h3>
+          <h3>Quiz Results &amp; Feedback</h3>
           <Link to="/quizzes">Open quizzes</Link>
         </div>
 
@@ -301,7 +354,7 @@ export default function StudentCombinedGrades() {
           Marks appear after your Faculty publishes quiz results.
         </p>
 
-        {quizzes.length === 0 ? (
+        {allQuizzes.length === 0 ? (
           <p className="gq-empty">
             No published quiz in your enrolled courses yet.
           </p>
@@ -311,6 +364,7 @@ export default function StudentCombinedGrades() {
               <thead>
                 <tr>
                   <th>Quiz</th>
+                  <th>Type</th>
                   <th>Course</th>
                   <th>Status</th>
                   <th>Marks</th>
@@ -319,10 +373,11 @@ export default function StudentCombinedGrades() {
               </thead>
 
               <tbody>
-                {quizzes.map((quiz) => (
-                  <tr key={idOf(quiz._id)}>
+                {allQuizzes.map((quiz) => (
+                  <tr key={`${quiz.kind}-${idOf(quiz._id)}`}>
                     <td>{quiz.title}</td>
-                    <td>{quiz.course?.code || "â€”"}</td>
+                    <td>{quiz.kind}</td>
+                    <td>{quiz.course?.code || "-"}</td>
                     <td>
                       {quiz.attempted
                         ? "Submitted"
@@ -331,21 +386,20 @@ export default function StudentCombinedGrades() {
                     <td>
                       {hasQuizResult(quiz) ? (
                         <span className="badge graded">
-                          {quiz.result.score}/
-                          {quiz.result.maxScore}
+                          {quiz.result.score}/{quiz.result.maxScore}
                         </span>
                       ) : (
                         <span className="badge pending">
                           {quiz.attempted
                             ? "Not published"
-                            : "â€”"}
+                            : "-"}
                         </span>
                       )}
                     </td>
                     <td>
                       {hasQuizResult(quiz)
-                        ? quiz.result.feedback || "â€”"
-                        : "â€”"}
+                        ? quiz.result.feedback || "-"
+                        : "-"}
                     </td>
                   </tr>
                 ))}

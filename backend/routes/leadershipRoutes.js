@@ -46,18 +46,88 @@ async function audit(req, action, target, detail = "") {
 }
 
 async function reportData() {
-  const [users, courses, assignments, announcementCount, policyCount] =
-    await Promise.all([
-      User.find().select("role isActive").lean(),
-      Course.find().populate("faculty", "name").lean(),
-      Assignment.find().select("course submissions").lean(),
-      Announcement.countDocuments(),
-      Policy.countDocuments({ status: "published" })
-    ]);
+  const fs = require("fs");
+  const path = require("path");
+  const Quiz = fs.existsSync(path.join(__dirname, "../models/Quiz.js"))
+    ? require("../models/Quiz")
+    : null;
+  const QuizAttempt = fs.existsSync(path.join(__dirname, "../models/QuizAttempt.js"))
+    ? require("../models/QuizAttempt")
+    : null;
+  const Routine = fs.existsSync(path.join(__dirname, "../models/Routine.js"))
+    ? require("../models/Routine")
+    : null;
 
-  const academicCollection =
-    mongoose.connection.db.collection("academicupdates");
+  const ALL_BUP_DEPARTMENTS = [
+    { key: "ict", label: "ICT" },
+    { key: "cse", label: "CSE" },
+    { key: "es", label: "ES" },
+    { key: "economics", label: "Economics" },
+    { key: "english", label: "English" },
+    { key: "law", label: "Law" },
+    { key: "bba", label: "Business Administration" },
+    { key: "publicadministration", label: "Public Administration" },
+    { key: "ir", label: "International Relations" },
+    { key: "sociology", label: "Sociology" },
+    { key: "developmentstudies", label: "Development Studies" },
+    { key: "mcj", label: "Mass Communication and Journalism" },
+    { key: "dhsm", label: "Disaster and Human Security Management" },
+    { key: "pchrs", label: "Peace, Conflict and Human Rights Studies" },
+    { key: "universityadministration", label: "University Administration" }
+  ];
 
+  const normalizeDeptKey = (val) => {
+    const raw = String(val || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!raw) return "unassigned";
+    if (raw === "ict" || raw.includes("informationandcommunicationtechnology")) return "ict";
+    if (raw === "cse" || raw.includes("computerscienceandengineering")) return "cse";
+    if (raw === "es" || raw.includes("environmentalscience")) return "es";
+    if (raw === "bba" || raw.includes("businessadministration")) return "bba";
+    if (raw === "ir" || raw.includes("internationalrelations")) return "ir";
+    if (raw === "mcj" || raw.includes("masscommunicationandjournalism")) return "mcj";
+    if (raw === "dhsm" || raw.includes("disasterandhumansecuritymanagement")) return "dhsm";
+    if (raw === "pchrs" || raw.includes("peaceconflictandhumanrightsstudies")) return "pchrs";
+    if (raw === "administration" || raw.includes("universityadministration")) return "universityadministration";
+    return raw;
+  };
+
+  const formatDeptName = (val, key) => {
+    const found = ALL_BUP_DEPARTMENTS.find((d) => d.key === key);
+    if (found) return found.label;
+    if (key === "unassigned") return "Unassigned";
+    return String(val || "Unassigned").trim();
+  };
+
+  const [
+    users,
+    courses,
+    assignments,
+    announcementCount,
+    policyCount,
+    quizzes,
+    quizAttempts,
+    routines
+  ] = await Promise.all([
+    User.find().select("role department isActive").lean(),
+    Course.find().populate("faculty", "name department").lean(),
+    Assignment.find().select("course submissions").lean(),
+    Announcement.countDocuments(),
+    Policy.countDocuments({ status: "published" }),
+    Quiz ? Quiz.find().select("course title questions isPublished resultsPublished").lean() : [],
+    QuizAttempt
+      ? QuizAttempt.find({
+          $or: [
+            { status: { $in: ["submitted", "expired"] } },
+            { status: { $exists: false } }
+          ]
+        })
+          .select("quiz course score maxScore status")
+          .lean()
+      : [],
+    Routine ? Routine.find().select("department departmentKey").lean() : []
+  ]);
+
+  const academicCollection = mongoose.connection.db.collection("academicupdates");
   const [calendarCount, rescheduleCount] = await Promise.all([
     academicCollection.countDocuments({ kind: "calendar" }),
     academicCollection.countDocuments({ kind: "reschedule" })
@@ -65,88 +135,189 @@ async function reportData() {
 
   const roleCounts = roles.map((role) => ({
     role,
-    total: users.filter((user) => user.role === role).length,
-    active: users.filter(
-      (user) => user.role === role && user.isActive !== false
-    ).length
+    total: users.filter((u) => u.role === role).length,
+    active: users.filter((u) => u.role === role && u.isActive !== false).length
   }));
+
+  const deptMap = new Map();
+  const ensureDept = (deptRaw) => {
+    const key = normalizeDeptKey(deptRaw);
+    if (!deptMap.has(key)) {
+      deptMap.set(key, {
+        key,
+        department: formatDeptName(deptRaw, key),
+        users: {
+          total: 0,
+          active: 0,
+          byRole: roles.map((r) => ({ role: r, total: 0, active: 0 }))
+        },
+        students: 0,
+        faculty: 0,
+        staff: 0,
+        courses: 0,
+        enrollments: 0,
+        materials: 0,
+        assignments: 0,
+        submissions: 0,
+        graded: 0,
+        averageGrade: null,
+        submissionRate: 0,
+        quizzes: 0,
+        quizAttempts: 0,
+        quizParticipationPercent: 0,
+        routines: 0,
+        courseRows: [],
+        _gradeSum: 0,
+        _expectedSubs: 0,
+        _expectedQuiz: 0
+      });
+    }
+    return deptMap.get(key);
+  };
+
+  // Pre-populate all registration departments so Authority sees every department
+  for (const deptItem of ALL_BUP_DEPARTMENTS) {
+    ensureDept(deptItem.label);
+  }
+
+  for (const u of users) {
+    const d = ensureDept(u.department);
+    d.users.total += 1;
+    if (u.isActive !== false) d.users.active += 1;
+    const rObj = d.users.byRole.find((x) => x.role === u.role);
+    if (rObj) {
+      rObj.total += 1;
+      if (u.isActive !== false) rObj.active += 1;
+    }
+    if (u.role === "student") d.students += 1;
+    if (u.role === "faculty") d.faculty += 1;
+    if (u.role === "staff") d.staff += 1;
+  }
+
+  for (const rt of routines) {
+    const d = ensureDept(rt.department || rt.departmentKey);
+    d.routines += 1;
+  }
 
   let submissionCount = 0;
   let gradedCount = 0;
   let gradeSum = 0;
 
   const courseRows = courses.map((course) => {
-    const related = assignments.filter(
-      (item) => String(item.course) === String(course._id)
-    );
+    const cId = String(course._id);
+    const dept = ensureDept(course.faculty?.department || "Unassigned");
 
-    const submissions = related.flatMap((item) => item.submissions || []);
-    const grades = submissions
-      .map((item) => item.grade)
-      .filter(
-        (grade) =>
-          typeof grade === "number" &&
-          Number.isFinite(grade) &&
-          grade >= 0 &&
-          grade <= 100
-      );
+    const relatedAssign = assignments.filter((a) => String(a.course) === cId);
+    const subs = relatedAssign.flatMap((a) => a.submissions || []);
+    const grades = subs
+      .map((s) => s.grade)
+      .filter((g) => typeof g === "number" && Number.isFinite(g) && g >= 0 && g <= 100);
 
-    submissionCount += submissions.length;
+    const relatedQuizzes = quizzes.filter((q) => String(q.course) === cId);
+    const qIds = new Set(relatedQuizzes.map((q) => String(q._id)));
+    const cQuizAttempts = quizAttempts.filter((qa) => qIds.has(String(qa.quiz)));
+
+    const enrolledCount = course.students?.length || 0;
+    const matCount = course.materials?.length || 0;
+    const expectedAssign = relatedAssign.length * enrolledCount;
+    const expectedQuiz = relatedQuizzes.length * enrolledCount;
+
+    const cGradeSum = grades.reduce((sum, g) => sum + g, 0);
+    submissionCount += subs.length;
     gradedCount += grades.length;
-    gradeSum += grades.reduce((sum, grade) => sum + grade, 0);
+    gradeSum += cGradeSum;
 
-    const expected = related.length * (course.students?.length || 0);
+    const subRate = expectedAssign
+      ? Math.min(100, Math.round((subs.length / expectedAssign) * 100))
+      : 0;
+    const quizPartRate = expectedQuiz
+      ? Math.min(100, Math.round((cQuizAttempts.length / expectedQuiz) * 100))
+      : 0;
 
-    return {
-      id: String(course._id),
+    const row = {
+      id: cId,
+      department: dept.department,
+      departmentKey: dept.key,
       code: course.code,
       title: course.title,
       faculty: course.faculty?.name || "Not assigned",
-      students: course.students?.length || 0,
-      materials: course.materials?.length || 0,
-      assignments: related.length,
-      submissions: submissions.length,
+      students: enrolledCount,
+      materials: matCount,
+      assignments: relatedAssign.length,
+      submissions: subs.length,
       graded: grades.length,
-      averageGrade: grades.length
-        ? Math.round(
-            grades.reduce((sum, grade) => sum + grade, 0) /
-              grades.length
-          )
-        : null,
-      submissionRate: expected
-        ? Math.min(100, Math.round((submissions.length / expected) * 100))
-        : null
+      averageGrade: grades.length ? Math.round(cGradeSum / grades.length) : null,
+      submissionRate: expectedAssign ? subRate : null,
+      quizzes: relatedQuizzes.length,
+      quizAttempts: cQuizAttempts.length,
+      quizParticipationPercent: expectedQuiz ? quizPartRate : null
     };
+
+    dept.courses += 1;
+    dept.enrollments += enrolledCount;
+    dept.materials += matCount;
+    dept.assignments += relatedAssign.length;
+    dept.submissions += subs.length;
+    dept.graded += grades.length;
+    dept._gradeSum += cGradeSum;
+    dept._expectedSubs += expectedAssign;
+    dept.quizzes += relatedQuizzes.length;
+    dept.quizAttempts += cQuizAttempts.length;
+    dept._expectedQuiz += expectedQuiz;
+    dept.courseRows.push(row);
+
+    return row;
   });
+
+  const departmentRows = Array.from(deptMap.values())
+    .map((d) => {
+      d.averageGrade = d.graded ? Math.round(d._gradeSum / d.graded) : null;
+      d.submissionRate = d._expectedSubs
+        ? Math.min(100, Math.round((d.submissions / d._expectedSubs) * 100))
+        : 0;
+      d.quizParticipationPercent = d._expectedQuiz
+        ? Math.min(100, Math.round((d.quizAttempts / d._expectedQuiz) * 100))
+        : 0;
+      delete d._gradeSum;
+      delete d._expectedSubs;
+      delete d._expectedQuiz;
+      return d;
+    })
+    .filter((d) => d.key !== "unassigned" || d.courses > 0 || d.users.total > 0)
+    .sort((a, b) => {
+      const idxA = ALL_BUP_DEPARTMENTS.findIndex((d) => d.key === a.key);
+      const idxB = ALL_BUP_DEPARTMENTS.findIndex((d) => d.key === b.key);
+      const orderA = idxA >= 0 ? idxA : 999;
+      const orderB = idxB >= 0 ? idxB : 999;
+      return orderA !== orderB
+        ? orderA - orderB
+        : a.department.localeCompare(b.department);
+    });
 
   return {
     generatedAt: new Date().toISOString(),
     users: {
       total: users.length,
-      active: users.filter((item) => item.isActive !== false).length,
+      active: users.filter((u) => u.isActive !== false).length,
       byRole: roleCounts
     },
     courses: courses.length,
-    enrollments: courses.reduce(
-      (sum, course) => sum + (course.students?.length || 0), 0
-    ),
-    materials: courses.reduce(
-      (sum, course) => sum + (course.materials?.length || 0), 0
-    ),
+    enrollments: courses.reduce((sum, c) => sum + (c.students?.length || 0), 0),
+    materials: courses.reduce((sum, c) => sum + (c.materials?.length || 0), 0),
     assignments: assignments.length,
     submissions: submissionCount,
     graded: gradedCount,
-    averageGrade: gradedCount
-      ? Math.round(gradeSum / gradedCount)
-      : null,
+    averageGrade: gradedCount ? Math.round(gradeSum / gradedCount) : null,
+    quizzes: quizzes.length,
+    quizAttempts: quizAttempts.length,
     announcements: announcementCount,
     calendarEvents: calendarCount,
     classReschedules: rescheduleCount,
     publishedPolicies: policyCount,
-    courseRows
+    courseRows,
+    departmentRows
   };
 }
-
 function csvValue(value) {
   let result = String(value == null ? "" : value);
 
@@ -384,7 +555,7 @@ router.put(
       : "";
 
     await user.save();
-    await audit(req, "user_updated", user._id, `${oldRole} â†’ ${role}`);
+    await audit(req, "user_updated", user._id, `${oldRole} -> ${role}`);
 
     res.json({ message: "User updated." });
   })
@@ -602,17 +773,25 @@ router.get(
 
 router.get(
   "/policies",
-  authorize("admin", "authority"),
-  wrap(async (_req, res) => {
-    const policies = await Policy.find()
+  authorize("student", "faculty", "staff", "admin", "authority"),
+  wrap(async (req, res) => {
+    const managementView =
+      req.user.role === "admin" ||
+      req.user.role === "authority";
+
+    // Students, faculty and staff see only published policies.
+    const filter = managementView
+      ? {}
+      : { status: "published" };
+
+    const policies = await Policy.find(filter)
       .populate("createdBy", "name")
       .sort({ updatedAt: -1 })
       .lean();
 
-    res.json(policies);
+    return res.json(policies);
   })
 );
-
 router.post(
   "/policies",
   authorize("authority"),

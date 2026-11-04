@@ -49,7 +49,7 @@ function getId(value) {
 }
 
 function prettyDate(value) {
-  if (!value) return "â€”";
+  if (!value) return "-";
 
   const date = new Date(`${value}T00:00:00`);
 
@@ -248,7 +248,7 @@ export default function AcademicUpdates() {
     <Layout title="Academic Updates">
       <div className="aup-page">
         <section className="aup-hero">
-          <span className="aup-eyebrow">BUP LEARNHUB Â· ACADEMIC INFORMATION</span>
+          <span className="aup-eyebrow">BUP LEARNHUB | ACADEMIC INFORMATION</span>
           <h1>Stay informed. Stay on schedule.</h1>
           <p>
             Explore the academic calendar, class schedule changes and
@@ -376,7 +376,7 @@ export default function AcademicUpdates() {
                     </label>
 
                     <label>
-                      End date Â· optional
+                      End date | optional
                       <input
                         type="date"
                         name="endDate"
@@ -430,7 +430,7 @@ export default function AcademicUpdates() {
                       <option value="">Select course</option>
                       {courses.map((course) => (
                         <option key={course._id} value={course._id}>
-                          {course.code} â€” {course.title}
+                          {course.code} - {course.title}
                         </option>
                       ))}
                     </select>
@@ -531,7 +531,7 @@ export default function AcademicUpdates() {
                   </div>
 
                   <label>
-                    Reason Â· optional
+                    Reason | optional
                     <textarea
                       name="reason"
                       rows="3"
@@ -598,7 +598,7 @@ export default function AcademicUpdates() {
                             <span className="aup-date">
                               {prettyDate(item.date)}
                               {item.endDate
-                                ? ` â€“ ${prettyDate(item.endDate)}`
+                                ? ` - ${prettyDate(item.endDate)}`
                                 : ""}
                             </span>
                           </div>
@@ -635,7 +635,7 @@ export default function AcademicUpdates() {
                                 {prettyDate(item.oldDate)}
                               </strong>
                               <span>
-                                {item.oldStart} â€“ {item.oldEnd}
+                                {item.oldStart} - {item.oldEnd}
                               </span>
                             </div>
 
@@ -647,7 +647,7 @@ export default function AcademicUpdates() {
                                 {prettyDate(item.newDate)}
                               </strong>
                               <span>
-                                {item.newStart} â€“ {item.newEnd}
+                                {item.newStart} - {item.newEnd}
                               </span>
                             </div>
                           </div>

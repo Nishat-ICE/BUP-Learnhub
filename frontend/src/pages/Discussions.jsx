@@ -379,7 +379,7 @@ export default function Discussions() {
                       key={course._id}
                       value={course._id}
                     >
-                      {course.code} â€”{" "}
+                      {course.code} -{" "}
                       {course.title}
                     </option>
                   ))}
@@ -500,7 +500,7 @@ export default function Discussions() {
                           <small>
                             {thread.author?.role ||
                               "Member"}
-                            {" Â· "}
+                            {" | "}
                             {formatDate(
                               thread.createdAt
                             )}

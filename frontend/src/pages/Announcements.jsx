@@ -162,7 +162,7 @@ const Announcements = () => {
                 <option value="">General announcement</option>
                 {availableCourses.map((course) => (
                   <option key={course._id} value={course._id}>
-                    {course.code} â€” {course.title}
+                    {course.code} - {course.title}
                   </option>
                 ))}
               </select>

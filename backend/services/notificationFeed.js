@@ -543,7 +543,7 @@ async function syncNotifications(user) {
           : "Class rescheduled",
         item.kind === "calendar"
           ? item.title
-          : `${item.courseCode || "Course"} Â· Section ${item.section || "All"}`,
+          : `${item.courseCode || "Course"} | Section ${item.section || "All"}`,
         "/academic-updates",
         item.kind === "reschedule"
           ? item.course

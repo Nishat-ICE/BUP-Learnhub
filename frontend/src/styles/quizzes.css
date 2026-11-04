@@ -300,3 +300,21 @@ html body .lq-page button.lq-danger {
     grid-template-columns: 1fr;
   }
 }
+/* Faculty-set quiz timer */
+.lq-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 4px 0 16px;
+  padding: 10px 15px;
+  border-radius: 12px;
+  background: #e8f6f2;
+  color: #087a70;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.lq-timer.danger {
+  background: #fff0f0;
+  color: #b4232f;
+}

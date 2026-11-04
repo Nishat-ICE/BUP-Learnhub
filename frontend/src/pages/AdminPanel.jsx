@@ -1,3 +1,4 @@
+import { AdminDashboardCharts } from "../components/RoleDashboardCharts.jsx";
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Layout from "../components/Layout.jsx";
@@ -285,7 +286,7 @@ export default function AdminPanel() {
 
         {issued && (
           <div className="lead-credential" role="status">
-            <strong>New account login â€” copy it now</strong>
+            <strong>New account login - copy it now</strong>
             <p>Email: {issued.email}</p>
             <p>Password: {issued.password}</p>
             <button
@@ -311,6 +312,7 @@ export default function AdminPanel() {
               </button>
             </div>
 
+            <AdminDashboardCharts report={report} />
             <LeadershipReport report={report} />
 
             <div className="lead-panel">
@@ -354,7 +356,7 @@ export default function AdminPanel() {
 
             {approvedReset && (
               <div className="reset-flow-approved" role="status">
-                <strong>One-time code â€” shown only now</strong>
+                <strong>One-time code - shown only now</strong>
                 <p>Account: {approvedReset.email}</p>
                 <code>{approvedReset.code}</code>
                 <p>
@@ -384,7 +386,7 @@ export default function AdminPanel() {
                 <div>
                   <strong>{request.user?.name || "Unknown user"}</strong>
                   <small>
-                    {request.user?.email || "Account unavailable"} Â·{" "}
+                    {request.user?.email || "Account unavailable"} |{" "}
                     {request.user?.role || "Unknown role"}
                   </small>
                   <small>
@@ -502,7 +504,7 @@ export default function AdminPanel() {
 
                 {!editingId && (
                   <label className="lead-full">
-                    Initial password â€” optional
+                    Initial password - optional
                     <input
                       name="password"
                       type="password"
@@ -586,7 +588,7 @@ export default function AdminPanel() {
                           <small>{user.email}</small>
                         </td>
                         <td>{user.role}</td>
-                        <td>{user.department || "â€”"}</td>
+                        <td>{user.department || "-"}</td>
                         <td>
                           <span
                             className={
@@ -651,7 +653,7 @@ export default function AdminPanel() {
 
               <div className="lead-pagination">
                 <span>
-                  {users.total} users Â· page {users.page} of {users.pages}
+                  {users.total} users | page {users.page} of {users.pages}
                 </span>
                 <button
                   type="button"
@@ -700,7 +702,7 @@ export default function AdminPanel() {
                 <option value="">Select a course</option>
                 {courses.map((course) => (
                   <option key={course._id} value={course._id}>
-                    {course.code} â€” {course.title}
+                    {course.code} - {course.title}
                   </option>
                 ))}
               </select>
@@ -759,7 +761,7 @@ export default function AdminPanel() {
                             {student.name}
                             <small>{student.email}</small>
                           </td>
-                          <td>{student.section || "â€”"}</td>
+                          <td>{student.section || "-"}</td>
                           <td>
                             <button
                               type="button"
@@ -834,8 +836,8 @@ export default function AdminPanel() {
                 }
               >
                 {settings?.registrationEnabled
-                  ? "Enabled Â· click to disable"
-                  : "Disabled Â· click to enable"}
+                  ? "Enabled | click to disable"
+                  : "Disabled | click to enable"}
               </button>
             </div>
 
@@ -859,7 +861,7 @@ export default function AdminPanel() {
                   <strong>{entry.action.replaceAll("_", " ")}</strong>
                   <small>
                     {entry.actor?.name || "Account removed"}
-                    {entry.detail ? ` Â· ${entry.detail}` : ""}
+                    {entry.detail ? ` | ${entry.detail}` : ""}
                   </small>
                 </div>
                 <time>

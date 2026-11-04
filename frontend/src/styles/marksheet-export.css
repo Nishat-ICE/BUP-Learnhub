@@ -1,0 +1,90 @@
+.ms-panel {
+  margin-bottom: 24px;
+}
+
+.ms-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.ms-eyebrow {
+  color: #087a70;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+}
+
+.ms-header h3 {
+  margin: 6px 0;
+  color: #102a3a;
+}
+
+.ms-header p,
+.ms-muted {
+  color: #667085;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.ms-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ms-controls select {
+  padding: 10px 14px;
+  border: 1px solid #dfe7e9;
+  border-radius: 11px;
+  background: #ffffff;
+  color: #172033;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+html body .ms-panel button.ms-btn {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 10px 14px !important;
+  border-radius: 11px !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+html body .ms-panel button.ms-btn-light {
+  background: #e8f6f2 !important;
+  color: #087a70 !important;
+  box-shadow: none !important;
+}
+
+html body .ms-panel button.ms-btn-excel {
+  background: linear-gradient(110deg, #092b3e, #087a70) !important;
+  color: #ffffff !important;
+}
+
+html body .ms-panel button.ms-btn-pdf {
+  background: linear-gradient(110deg, #0f3d2e, #15803d) !important;
+  color: #ffffff !important;
+}
+
+.ms-error {
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: #fff0f0;
+  color: #982d35;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+.ms-table-wrap {
+  margin-top: 10px;
+}

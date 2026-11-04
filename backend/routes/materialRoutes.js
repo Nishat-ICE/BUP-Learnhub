@@ -106,7 +106,7 @@ function metadata(body) {
       : "";
 
   if (!title || title.length > 120) {
-    return { error: "Title must contain 1â€“120 characters." };
+    return { error: "Title must contain 1-120 characters." };
   }
 
   if (description.length > 700) {

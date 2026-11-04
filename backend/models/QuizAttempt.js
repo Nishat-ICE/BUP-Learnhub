@@ -6,7 +6,10 @@ const answerSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true
     },
-    selectedIndex: { type: Number, required: true }
+    selectedIndex: {
+      type: Number,
+      required: true
+    }
   },
   { _id: false }
 );
@@ -16,7 +19,8 @@ const attemptSchema = new mongoose.Schema(
     quiz: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Quiz",
-      required: true
+      required: true,
+      index: true
     },
     course: {
       type: mongoose.Schema.Types.ObjectId,
@@ -28,11 +32,39 @@ const attemptSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
-    answers: { type: [answerSchema], required: true },
-    score: { type: Number, required: true },
-    maxScore: { type: Number, required: true },
-    feedback: { type: String, default: "" },
-    submittedAt: { type: Date, default: Date.now }
+    answers: {
+      type: [answerSchema],
+      default: []
+    },
+    score: {
+      type: Number,
+      default: 0
+    },
+    maxScore: {
+      type: Number,
+      default: 0
+    },
+    feedback: {
+      type: String,
+      default: ""
+    },
+    status: {
+      type: String,
+      enum: ["in_progress", "submitted", "expired"],
+      default: "submitted"
+    },
+    startedAt: {
+      type: Date,
+      default: Date.now
+    },
+    expiresAt: {
+      type: Date,
+      default: null
+    },
+    submittedAt: {
+      type: Date,
+      default: Date.now
+    }
   },
   { timestamps: true }
 );
@@ -42,4 +74,7 @@ attemptSchema.index(
   { unique: true }
 );
 
-module.exports = mongoose.model("QuizAttempt", attemptSchema);
+module.exports = mongoose.model(
+  "QuizAttempt",
+  attemptSchema
+);

@@ -1,3 +1,4 @@
+import FacultyMarksheetExport from "../components/FacultyMarksheetExport.jsx";
 import StudentCombinedGrades from "../components/StudentCombinedGrades.jsx";
 import React, { useEffect, useState } from "react";
 import Layout from "../components/Layout.jsx";
@@ -49,12 +50,12 @@ const StudentView = () => {
           {data.progress.map((p) => (
             <div className="progress-item" key={p.courseId}>
               <div className="progress-head">
-                <span>{p.code} · {p.title}</span>
-                <small>{p.submitted}/{p.totalAssignments} submitted · {p.percent}%</small>
+                <span>{p.code} | {p.title}</span>
+                <small>{p.submitted}/{p.totalAssignments} submitted | {p.percent}%</small>
               </div>
               <div className="bar"><div style={{ width: `${p.percent}%` }} /></div>
               <small className="faculty-line">
-                Faculty: {p.faculty} {p.average !== null && `· Avg: ${p.average}`}
+                Faculty: {p.faculty} {p.average !== null && `| Avg: ${p.average}`}
               </small>
             </div>
           ))}
@@ -88,7 +89,7 @@ const StudentView = () => {
                           <span className="badge pending">Pending</span>
                         )}
                       </td>
-                      <td>{g.feedback || "—"}</td>
+                      <td>{g.feedback || "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -199,7 +200,7 @@ const Grades = () => {
 
   return (
     <Layout title="Grades & Progress">
-      {isGrader ? <FacultyView /> : user.role === "student" ? <StudentCombinedGrades /> : <StudentView />}
+      {isGrader ? <><FacultyMarksheetExport /><FacultyView /></> : user.role === "student" ? <StudentCombinedGrades /> : <StudentView />}
     </Layout>
   );
 };

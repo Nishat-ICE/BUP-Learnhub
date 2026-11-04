@@ -1,3 +1,6 @@
+import TheoryQuizzes from "./pages/TheoryQuizzes.jsx";
+import Routines from "./pages/Routines.jsx";
+import Policies from "./pages/Policies.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import Discussions from "./pages/Discussions.jsx";
 import Quizzes from "./pages/Quizzes.jsx";
@@ -102,6 +105,17 @@ function DiscussionAccess({ children }) {
     ? children
     : <Navigate to="/dashboard" replace />;
 }
+function TheoryRoleOnly({ children }) {
+  let role = "";
+  try {
+    role = JSON.parse(localStorage.getItem("user") || "{}").role;
+  } catch {
+    role = "";
+  }
+  return ["student", "faculty"].includes(role)
+    ? children
+    : <Navigate to="/dashboard" replace />;
+}
 function App() {
   const token = localStorage.getItem("token");
 
@@ -172,6 +186,32 @@ function App() {
         element={
           <PrivateRoute>
             <Notifications />
+          </PrivateRoute>
+        }
+      />
+          <Route
+        path="/policies"
+        element={
+          <PrivateRoute>
+            <Policies />
+          </PrivateRoute>
+        }
+      />
+          <Route
+        path="/routines"
+        element={
+          <PrivateRoute>
+            <Routines />
+          </PrivateRoute>
+        }
+      />
+          <Route
+        path="/theory-quizzes"
+        element={
+          <PrivateRoute>
+            <TheoryRoleOnly>
+              <TheoryQuizzes />
+            </TheoryRoleOnly>
           </PrivateRoute>
         }
       />

@@ -1,16 +1,20 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
 const mongoose = require("mongoose");
 const Course = require("../models/Course");
+const User = require("../models/User");
 const Assignment = require("../models/Assignment");
 const Announcement = require("../models/Announcement");
 const { protect, authorize } = require("../middleware/authMiddleware");
+const { getDepartmentCourseIds } = require("../services/departmentScope");
 
 const router = express.Router();
 
 const canManage = (course, user) =>
-  user.role === "admin" ||
+  user.role === "staff" ||
   (user.role === "faculty" &&
-    String(course.faculty) === String(user._id));
+    String(course.faculty?._id || course.faculty) === String(user._id));
 
 const sendError = (res, error) => {
   if (error.code === 11000) {
@@ -25,10 +29,55 @@ const sendError = (res, error) => {
   return res.status(500).json({ message: "Could not complete this request." });
 };
 
+async function resolveTargetFaculty(req, res) {
+  // Faculty auto-assigns to self
+  if (req.user.role === "faculty") {
+    return req.user;
+  }
+
+  // Staff can assign to ANY active Faculty email (no department restriction on email)
+  const rawEmail =
+    typeof req.body?.facultyEmail === "string"
+      ? req.body.facultyEmail.trim().toLowerCase()
+      : "";
+
+  if (!rawEmail) {
+    res.status(400).json({
+      message: "Please enter the Faculty email to assign this course."
+    });
+    return null;
+  }
+
+  const facultyUser = await User.findOne({
+    email: rawEmail,
+    role: "faculty",
+    isActive: { $ne: false }
+  });
+
+  if (!facultyUser) {
+    res.status(404).json({
+      message: `No active Faculty account found with email "${rawEmail}".`
+    });
+    return null;
+  }
+
+  return facultyUser;
+}
+
+// GET /api/courses
+// Faculty sees ONLY their own assigned courses; Staff sees their department's courses
 router.get("/", protect, async (req, res) => {
   try {
-    const courses = await Course.find()
-      .populate("faculty", "name email")
+    let filter = {};
+    if (req.user.role === "faculty") {
+      filter = { faculty: req.user._id };
+    } else if (req.user.role === "staff") {
+      const deptCourseIds = await getDepartmentCourseIds(req.user.department);
+      filter = { _id: { $in: deptCourseIds } };
+    }
+
+    const courses = await Course.find(filter)
+      .populate("faculty", "name email department")
       .populate("students", "_id")
       .sort({ createdAt: -1 });
 
@@ -38,139 +87,186 @@ router.get("/", protect, async (req, res) => {
   }
 });
 
-router.post("/", protect, authorize("faculty", "admin"), async (req, res) => {
-  try {
-    const { title, code, description, credit } = req.body;
+// POST /api/courses (Faculty & Staff)
+router.post(
+  "/",
+  protect,
+  authorize("faculty", "staff"),
+  async (req, res) => {
+    try {
+      const { title, code, description, credit } = req.body;
 
-    if (
-      typeof title !== "string" ||
-      !title.trim() ||
-      typeof code !== "string" ||
-      !code.trim()
-    ) {
-      return res.status(400).json({
-        message: "Course title and code are required."
+      if (
+        typeof title !== "string" ||
+        !title.trim() ||
+        typeof code !== "string" ||
+        !code.trim()
+      ) {
+        return res.status(400).json({
+          message: "Course title and code are required."
+        });
+      }
+
+      const creditValue = credit === "" || credit == null ? 3 : Number(credit);
+
+      if (!Number.isFinite(creditValue) || creditValue <= 0 || creditValue > 8) {
+        return res.status(400).json({
+          message: "Credit must be greater than 0 and at most 8."
+        });
+      }
+
+      const assignedFaculty = await resolveTargetFaculty(req, res);
+      if (!assignedFaculty) return;
+
+      const course = await Course.create({
+        title: title.trim(),
+        code: code.trim().toUpperCase(),
+        description: typeof description === "string" ? description.trim() : "",
+        credit: creditValue,
+        faculty: assignedFaculty._id
       });
+
+      const populated = await Course.findById(course._id)
+        .populate("faculty", "name email department")
+        .populate("students", "_id");
+
+      return res.status(201).json(populated);
+    } catch (error) {
+      return sendError(res, error);
     }
-
-    const creditValue = credit === "" || credit == null ? 3 : Number(credit);
-
-    if (!Number.isFinite(creditValue) || creditValue <= 0 || creditValue > 8) {
-      return res.status(400).json({
-        message: "Credit must be greater than 0 and at most 8."
-      });
-    }
-
-    const course = await Course.create({
-      title: title.trim(),
-      code: code.trim().toUpperCase(),
-      description: typeof description === "string" ? description.trim() : "",
-      credit: creditValue,
-      faculty: req.user._id
-    });
-
-    return res.status(201).json(course);
-  } catch (error) {
-    return sendError(res, error);
   }
-});
+);
 
-router.put("/:id", protect, authorize("faculty", "admin"), async (req, res) => {
-  try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ message: "Invalid course ID." });
-    }
+// PUT /api/courses/:id (Faculty own course & Staff)
+router.put(
+  "/:id",
+  protect,
+  authorize("faculty", "staff"),
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ message: "Invalid course ID." });
+      }
 
-    const course = await Course.findById(req.params.id);
+      const course = await Course.findById(req.params.id);
 
-    if (!course) {
-      return res.status(404).json({ message: "Course not found." });
-    }
+      if (!course) {
+        return res.status(404).json({ message: "Course not found." });
+      }
 
-    if (!canManage(course, req.user)) {
-      return res.status(403).json({
-        message: "You can edit only your own course."
+      if (!canManage(course, req.user)) {
+        return res.status(403).json({
+          message: "You can edit only your own assigned course."
+        });
+      }
+
+      const { title, code, description, credit } = req.body;
+
+      if (
+        typeof title !== "string" ||
+        !title.trim() ||
+        typeof code !== "string" ||
+        !code.trim()
+      ) {
+        return res.status(400).json({
+          message: "Course title and code are required."
+        });
+      }
+
+      const creditValue = Number(credit);
+
+      if (!Number.isFinite(creditValue) || creditValue <= 0 || creditValue > 8) {
+        return res.status(400).json({ message: "Invalid course credit." });
+      }
+
+      const assignedFaculty = await resolveTargetFaculty(req, res);
+      if (!assignedFaculty) return;
+
+      course.title = title.trim();
+      course.code = code.trim().toUpperCase();
+      course.description =
+        typeof description === "string" ? description.trim() : "";
+      course.credit = creditValue;
+      course.faculty = assignedFaculty._id;
+
+      await course.save();
+
+      const populated = await Course.findById(course._id)
+        .populate("faculty", "name email department")
+        .populate("students", "_id");
+
+      return res.json({
+        message: "Course updated successfully.",
+        course: populated
       });
+    } catch (error) {
+      return sendError(res, error);
     }
-
-    const { title, code, description, credit } = req.body;
-
-    if (
-      typeof title !== "string" ||
-      !title.trim() ||
-      typeof code !== "string" ||
-      !code.trim()
-    ) {
-      return res.status(400).json({
-        message: "Course title and code are required."
-      });
-    }
-
-    const creditValue = Number(credit);
-
-    if (!Number.isFinite(creditValue) || creditValue <= 0 || creditValue > 8) {
-      return res.status(400).json({ message: "Invalid course credit." });
-    }
-
-    course.title = title.trim();
-    course.code = code.trim().toUpperCase();
-    course.description =
-      typeof description === "string" ? description.trim() : "";
-    course.credit = creditValue;
-
-    await course.save();
-    return res.json({ message: "Course updated successfully.", course });
-  } catch (error) {
-    return sendError(res, error);
   }
-});
+);
 
-router.delete("/:id", protect, authorize("faculty", "admin"), async (req, res) => {
-  try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ message: "Invalid course ID." });
+// DELETE /api/courses/:id
+router.delete(
+  "/:id",
+  protect,
+  authorize("faculty", "staff"),
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ message: "Invalid course ID." });
+      }
+
+      const course = await Course.findById(req.params.id);
+
+      if (!course) {
+        return res.status(404).json({ message: "Course not found." });
+      }
+
+      if (!canManage(course, req.user)) {
+        return res.status(403).json({
+          message: "You can delete only your own assigned course."
+        });
+      }
+
+      const QuizModel = fs.existsSync(path.join(__dirname, "../models/Quiz.js"))
+        ? require("../models/Quiz")
+        : null;
+      const TheoryQuizModel = fs.existsSync(
+        path.join(__dirname, "../models/TheoryQuiz.js")
+      )
+        ? require("../models/TheoryQuiz")
+        : null;
+
+      const [assignment, announcement, linkedQuiz, linkedTheory] =
+        await Promise.all([
+          Assignment.exists({ course: course._id }),
+          Announcement.exists({ course: course._id }),
+          QuizModel ? QuizModel.exists({ course: course._id }) : false,
+          TheoryQuizModel
+            ? TheoryQuizModel.exists({ course: course._id })
+            : false
+        ]);
+
+      if (
+        assignment ||
+        announcement ||
+        linkedQuiz ||
+        linkedTheory ||
+        course.materials?.length
+      ) {
+        return res.status(409).json({
+          message:
+            "This course has assignments, announcements, quizzes or materials. Remove its dependent content first."
+        });
+      }
+
+      await course.deleteOne();
+      return res.json({ message: "Course deleted successfully." });
+    } catch (error) {
+      return sendError(res, error);
     }
-
-    const course = await Course.findById(req.params.id);
-
-    if (!course) {
-      return res.status(404).json({ message: "Course not found." });
-    }
-
-    if (!canManage(course, req.user)) {
-      return res.status(403).json({
-        message: "You can delete only your own course."
-      });
-    }
-
-    const [assignment, announcement] = await Promise.all([
-      Assignment.exists({ course: course._id }),
-      Announcement.exists({ course: course._id })
-    ]);
-
-    if (assignment || announcement || course.materials?.length) {
-      return res.status(409).json({
-        message:
-          "This course has assignments, announcements or materials. Remove its dependent content first. Submitted work cannot be deleted."
-      });
-    }
-
-    const linkedQuiz = await require("../models/Quiz").exists({
-      course: course._id
-    });
-
-    if (linkedQuiz) {
-      return res.status(409).json({
-        message: "This course has quizzes. Quizzes with attempts must be preserved."
-      });
-    }
-
-    await course.deleteOne();
-    return res.json({ message: "Course deleted successfully." });
-  } catch (error) {
-    return sendError(res, error);
   }
-});
+);
 
 router.post("/:id/enroll", protect, authorize("student"), async (req, res) => {
   try {

@@ -247,7 +247,7 @@ const Home = () => {
       </section>
 
       <footer className="home-footer">
-        <p>Ã‚Â© 2026 BUP LearnHub. A Web-Based Learning Management System.</p>
+        <p>Ã‚(c) 2026 BUP LearnHub. A Web-Based Learning Management System.</p>
       </footer>
     </div>
   );

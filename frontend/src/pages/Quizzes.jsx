@@ -1,4 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState
+} from "react";
+
 import {
   Award,
   BookOpen,
@@ -6,15 +11,16 @@ import {
   Clock3,
   ListChecks,
   Pencil,
+  Timer,
   Trash2
 } from "lucide-react";
 
 import Layout from "../components/Layout.jsx";
 import api from "../api/api";
 import "../styles/quizzes.css";
+import TheoryQuizzes from "./TheoryQuizzes.jsx";
 
-const idOf = (value) =>
-  String(value?._id || value || "");
+const idOf = (value) => String(value?._id || value || "");
 
 const newQuestion = () => ({
   key: `${Date.now()}-${Math.random()}`,
@@ -29,6 +35,7 @@ const emptyForm = () => ({
   title: "",
   instructions: "",
   closesAt: "",
+  durationMinutes: 15,
   questions: [newQuestion()]
 });
 
@@ -40,14 +47,21 @@ const errorText = (error) =>
   error.message ||
   "Request failed.";
 
+const formatSeconds = (value) => {
+  const safe = Math.max(0, Number(value) || 0);
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+};
+
 function dateForInput(value) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) return "";
 
   const local = new Date(
-    date.getTime() -
-      date.getTimezoneOffset() * 60000
+    date.getTime() - date.getTimezoneOffset() * 60000
   );
 
   return local.toISOString().slice(0, 16);
@@ -62,20 +76,35 @@ export default function Quizzes() {
   const faculty = role === "faculty";
   const student = role === "student";
   const staff = role === "staff";
-  const reportRole = ["staff", "admin", "authority"].includes(role);
+  const reportRole = [
+    "staff",
+    "admin",
+    "authority"
+  ].includes(role);
 
+  const [quizMode, setQuizMode] = useState("mcq");
   const [courses, setCourses] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
   const [report, setReport] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
+
   const [playing, setPlaying] = useState(null);
   const [answers, setAnswers] = useState({});
+  const [secondsLeft, setSecondsLeft] = useState(null);
+  const [timerDeadline, setTimerDeadline] = useState(null);
+  const [savingAnswer, setSavingAnswer] = useState(false);
   const [review, setReview] = useState(null);
+  const [studentReview, setStudentReview] = useState(null);
   const [feedback, setFeedback] = useState({});
+
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState(null);
+
+  const timeoutLock = useRef(false);
+  const saveQueue = useRef(Promise.resolve());
+  const pendingSaves = useRef(0);
 
   async function load() {
     if (reportRole) {
@@ -95,12 +124,12 @@ export default function Quizzes() {
     setQuizzes(quizResponse.data);
 
     if (faculty) {
-      const myId = idOf(user.id || user._id);
+      const currentUserId = idOf(user.id || user._id);
 
       setCourses(
         courseResponse.data.filter(
           (course) =>
-            idOf(course.faculty) === myId
+            idOf(course.faculty) === currentUserId
         )
       );
     }
@@ -108,14 +137,94 @@ export default function Quizzes() {
 
   useEffect(() => {
     load()
-      .catch((error) =>
+      .catch((error) => {
         setNotice({
           type: "error",
           text: errorText(error)
-        })
-      )
+        });
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  async function autoSubmitExpired(quizId) {
+    if (timeoutLock.current) return;
+
+    timeoutLock.current = true;
+
+    try {
+      const response = await api.post(
+        `/quizzes/${quizId}/timeout`
+      );
+
+      setNotice({
+        type: "success",
+        text: response.data.message
+      });
+
+      setPlaying(null);
+      setTimerDeadline(null);
+      setSecondsLeft(null);
+      setAnswers({});
+
+      await load();
+    } catch (error) {
+      const remaining =
+        error.response?.data?.secondsLeft;
+
+      // Server clock is authoritative; retry if it still has time.
+      if (
+        error.response?.status === 409 &&
+        Number(remaining) > 0
+      ) {
+        timeoutLock.current = false;
+        setTimerDeadline(
+          Date.now() + Number(remaining) * 1000
+        );
+        setSecondsLeft(Number(remaining));
+        return;
+      }
+
+      setNotice({
+        type: "error",
+        text:
+          error.response?.data?.message ||
+          "Could not sync the expired attempt. Reopen the quiz to retry."
+      });
+
+      setPlaying(null);
+      setTimerDeadline(null);
+      setSecondsLeft(null);
+
+      await load().catch(() => {});
+    }
+  }
+
+  const playingId = playing?._id || "";
+
+  useEffect(() => {
+    if (!playingId || timerDeadline === null) {
+      return undefined;
+    }
+
+    const tick = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((timerDeadline - Date.now()) / 1000)
+      );
+
+      setSecondsLeft(remaining);
+
+      if (remaining === 0) {
+        autoSubmitExpired(playingId);
+      }
+    };
+
+    tick();
+
+    const timer = window.setInterval(tick, 250);
+
+    return () => window.clearInterval(timer);
+  }, [playingId, timerDeadline]);
 
   function resetForm() {
     setEditingId(null);
@@ -163,9 +272,22 @@ export default function Quizzes() {
   async function save(event) {
     event.preventDefault();
 
+    let closesAt;
+
+    try {
+      closesAt = new Date(form.closesAt).toISOString();
+    } catch {
+      setNotice({
+        type: "error",
+        text: "Choose a valid quiz deadline."
+      });
+      return;
+    }
+
     const payload = {
       ...form,
-      closesAt: new Date(form.closesAt).toISOString(),
+      closesAt,
+      durationMinutes: Number(form.durationMinutes),
       questions: form.questions.map((question) => ({
         text: question.text,
         options: question.options,
@@ -174,14 +296,13 @@ export default function Quizzes() {
       }))
     };
 
-    const done = await run(
-      () =>
-        editingId
-          ? api.put(`/quizzes/${editingId}`, payload)
-          : api.post("/quizzes", payload)
+    const result = await run(() =>
+      editingId
+        ? api.put(`/quizzes/${editingId}`, payload)
+        : api.post("/quizzes", payload)
     );
 
-    if (done) resetForm();
+    if (result) resetForm();
   }
 
   async function edit(item) {
@@ -195,12 +316,12 @@ export default function Quizzes() {
       const quiz = response.data;
 
       setEditingId(quiz._id);
-
       setForm({
         course: idOf(quiz.course),
         title: quiz.title,
         instructions: quiz.instructions || "",
         closesAt: dateForInput(quiz.closesAt),
+        durationMinutes: quiz.durationMinutes || 15,
         questions: quiz.questions.map((question) => ({
           key: idOf(question._id),
           text: question.text,
@@ -227,14 +348,61 @@ export default function Quizzes() {
   async function openQuiz(item) {
     setBusy(true);
     setNotice(null);
+    timeoutLock.current = false;
 
     try {
       const response = await api.get(
         `/quizzes/${item._id}/play`
       );
 
-      setPlaying(response.data);
-      setAnswers({});
+      const data = response.data;
+
+      if (data.closed) {
+        setNotice({
+          type: "error",
+          text: data.message || "Quiz deadline has passed."
+        });
+        await load();
+        return;
+      }
+
+      if (data.attempted || !data.questions?.length) {
+        setNotice({
+          type: data.result ? "success" : "error",
+          text: data.result
+            ? "This quiz is already submitted."
+            : data.message ||
+              "Your attempt is complete. Results show after Faculty publishes."
+        });
+
+        await load();
+        return;
+      }
+
+      const restored = {};
+
+      for (const answer of data.savedAnswers || []) {
+        restored[String(answer.questionId)] =
+          answer.selectedIndex;
+      }
+
+      const serverNow = Date.parse(data.serverNow);
+      const serverExpiry = Date.parse(data.expiresAt);
+
+      const remainingMs =
+        Number.isFinite(serverNow) &&
+        Number.isFinite(serverExpiry)
+          ? Math.max(0, serverExpiry - serverNow)
+          : Math.max(0, Number(data.secondsLeft || 0) * 1000);
+
+      setAnswers(restored);
+      setPlaying(data);
+      setSecondsLeft(
+        Math.ceil(remainingMs / 1000)
+      );
+      setTimerDeadline(Date.now() + remainingMs);
+      pendingSaves.current = 0;
+      saveQueue.current = Promise.resolve();
     } catch (error) {
       setNotice({
         type: "error",
@@ -245,64 +413,143 @@ export default function Quizzes() {
     }
   }
 
+  function saveAnswer(questionId, selectedIndex) {
+    setAnswers((current) => ({
+      ...current,
+      [questionId]: selectedIndex
+    }));
+
+    pendingSaves.current += 1;
+    setSavingAnswer(true);
+
+    const task = saveQueue.current
+      .catch(() => {})
+      .then(() =>
+        api.patch(
+          `/quizzes/${playing._id}/answers`,
+          { questionId, selectedIndex }
+        )
+      );
+
+    saveQueue.current = task;
+
+    task
+      .catch((error) => {
+        setNotice({
+          type: "error",
+          text:
+            error.response?.data?.message ||
+            "Answer could not be saved. Check your connection."
+        });
+      })
+      .finally(() => {
+        pendingSaves.current = Math.max(
+          0,
+          pendingSaves.current - 1
+        );
+
+        setSavingAnswer(
+          pendingSaves.current > 0
+        );
+      });
+  }
+
   async function submitQuiz(event) {
     event.preventDefault();
 
     if (!playing) return;
 
-    const selected = playing.questions.map(
-      (question) => ({
-        questionId: question._id,
-        selectedIndex: answers[question._id]
-      })
-    );
+    if (secondsLeft === 0) {
+      await autoSubmitExpired(playing._id);
+      return;
+    }
+
+    const selected = playing.questions.map((question) => ({
+      questionId: question._id,
+      selectedIndex: answers[question._id]
+    }));
 
     if (
       selected.some(
-        (answer) =>
-          answer.selectedIndex === undefined
+        (answer) => answer.selectedIndex === undefined
       )
     ) {
       setNotice({
         type: "error",
-        text: "Answer every question first."
+        text: "Answer every question before submitting."
       });
       return;
     }
 
-    if (
-      !window.confirm(
-        "Submit the quiz? You can attempt it only once."
-      )
-    ) return;
-
-    const done = await run(() =>
-      api.post(`/quizzes/${playing._id}/submit`, {
-        answers: selected
-      })
-    );
-
-    if (done) {
-      setPlaying(null);
-      setAnswers({});
+    if (!window.confirm("Submit your quiz? You can attempt it only once.")) {
+      return;
     }
-  }
 
-  async function openReview(item) {
     setBusy(true);
 
     try {
-      const [quizResponse, attemptResponse] =
+      await saveQueue.current;
+
+      await api.post(
+        `/quizzes/${playing._id}/submit`,
+        { answers: selected }
+      );
+
+      setPlaying(null);
+      setTimerDeadline(null);
+      setSecondsLeft(null);
+      setAnswers({});
+
+      await load();
+
+      setNotice({
+        type: "success",
+        text:
+          "Quiz submitted. Marks and answer review will be available after Faculty publishes results."
+      });
+    } catch (error) {
+      setNotice({
+        type: "error",
+        text: errorText(error)
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openStudentReview(quiz) {
+    setBusy(true);
+    setNotice(null);
+
+    try {
+      const response = await api.get(
+        `/quizzes/${quiz._id}/review`
+      );
+
+      setStudentReview(response.data);
+    } catch (error) {
+      setNotice({
+        type: "error",
+        text: errorText(error)
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openReview(quiz) {
+    setBusy(true);
+
+    try {
+      const [quizResponse, attemptsResponse] =
         await Promise.all([
-          api.get(`/quizzes/${item._id}`),
-          api.get(
-            `/quizzes/${item._id}/attempts`
-          )
+          api.get(`/quizzes/${quiz._id}`),
+          api.get(`/quizzes/${quiz._id}/attempts`)
         ]);
 
       setReview({
         quiz: quizResponse.data,
-        attempts: attemptResponse.data
+        attempts: attemptsResponse.data
       });
 
       setFeedback({});
@@ -319,7 +566,7 @@ export default function Quizzes() {
   async function saveFeedback(attempt) {
     if (!review) return;
 
-    const done = await run(() =>
+    const result = await run(() =>
       api.put(
         `/quizzes/${review.quiz._id}/attempts/${attempt._id}/feedback`,
         {
@@ -331,11 +578,77 @@ export default function Quizzes() {
       )
     );
 
-    if (done) {
-      await openReview({
-        _id: review.quiz._id
-      });
+    if (result) {
+      await openReview({ _id: review.quiz._id });
     }
+  }
+
+  async function publishResults(quiz) {
+    if (
+      !window.confirm(
+        "Publish marks and correct-answer review to students?"
+      )
+    ) {
+      return;
+    }
+
+    await run(() =>
+      api.post(`/quizzes/${quiz._id}/results`)
+    );
+  }
+
+  async function removeQuiz(quiz) {
+    if (!window.confirm(`Delete "${quiz.title}"?`)) {
+      return;
+    }
+
+    await run(() =>
+      api.delete(`/quizzes/${quiz._id}`)
+    );
+  }
+
+  if (
+    ![
+      "student",
+      "faculty",
+      "staff",
+      "admin",
+      "authority"
+    ].includes(role)
+  ) {
+    return (
+      <Layout title="Quizzes">
+        <div className="panel">
+          This section is not available for your role.
+        </div>
+      </Layout>
+    );
+  }
+
+    if (!reportRole && quizMode === "theory") {
+    return (
+      <Layout title="Quizzes">
+        <div className="lq-page">
+          <div className="lq-mode-switch" role="tablist" aria-label="Assessment type">
+            <button
+              type="button"
+              className="lq-mode-btn"
+              onClick={() => setQuizMode("mcq")}
+            >
+              Multiple Choice (MCQ)
+            </button>
+            <button
+              type="button"
+              className="lq-mode-btn active"
+              onClick={() => setQuizMode("theory")}
+            >
+              Broad &amp; Theory Questions
+            </button>
+          </div>
+          <TheoryQuizzes embedded />
+        </div>
+      </Layout>
+    );
   }
 
   return (
@@ -348,7 +661,25 @@ export default function Quizzes() {
           : "Quizzes"
       }
     >
-      <div className="lq-page">
+            <div className="lq-page">
+        {!reportRole && (
+          <div className="lq-mode-switch" role="tablist" aria-label="Assessment type">
+            <button
+              type="button"
+              className="lq-mode-btn active"
+              onClick={() => setQuizMode("mcq")}
+            >
+              Multiple Choice (MCQ)
+            </button>
+            <button
+              type="button"
+              className="lq-mode-btn"
+              onClick={() => setQuizMode("theory")}
+            >
+              Broad &amp; Theory Questions
+            </button>
+          </div>
+        )}
         <section className="panel lq-hero">
           <div>
             <span className="lq-eyebrow">
@@ -369,12 +700,12 @@ export default function Quizzes() {
 
             <p>
               {staff
-                ? "See how many enrolled students submitted each published quiz."
+                ? "View enrolment and participation counts."
                 : reportRole
                 ? "View aggregate quiz activity."
                 : faculty
-                ? "Create MCQs, review submissions and publish results."
-                : "Attempt enrolled-course quizzes and view published results."}
+                ? "Set each quiz deadline and attempt duration."
+                : "Your timer starts when you begin. Marks and answer review appear after Faculty publishes results."}
             </p>
           </div>
 
@@ -391,9 +722,7 @@ export default function Quizzes() {
         )}
 
         {loading && (
-          <div className="panel">
-            Loading quizzes...
-          </div>
+          <div className="panel">Loading quizzes...</div>
         )}
 
         {reportRole && report && (
@@ -406,7 +735,7 @@ export default function Quizzes() {
 
               <div>
                 <strong>{report.submissions}</strong>
-                <span>Submissions</span>
+                <span>Submitted attempts</span>
               </div>
             </div>
 
@@ -425,9 +754,7 @@ export default function Quizzes() {
                         <th>Submitted</th>
                         <th>Not submitted</th>
                         <th>Participation</th>
-                        {!staff && (
-                          <th>Average marks</th>
-                        )}
+                        {!staff && <th>Average marks</th>}
                       </tr>
                     </thead>
 
@@ -436,27 +763,22 @@ export default function Quizzes() {
                         <tr key={row.id}>
                           <td>
                             <strong>
-                              {row.courseCode} Â· {row.title}
+                              {row.courseCode} | {row.title}
                             </strong>
-                            <small>
-                              {row.courseTitle}
-                            </small>
+                            <small>{row.courseTitle}</small>
                           </td>
-
                           <td>{row.enrolled}</td>
                           <td>{row.submitted}</td>
                           <td>{row.notSubmitted}</td>
-
                           <td>
                             {row.participationPercent === null
-                              ? "â€”"
+                              ? "-"
                               : `${row.participationPercent}%`}
                           </td>
-
                           {!staff && (
                             <td>
                               {row.averagePercent === null
-                                ? "Not published"
+                                ? "-"
                                 : `${row.averagePercent}%`}
                             </td>
                           )}
@@ -492,14 +814,10 @@ export default function Quizzes() {
 
             {courses.length === 0 ? (
               <p>
-                Create your course first to add
-                a quiz.
+                Create your course first to add a quiz.
               </p>
             ) : (
-              <form
-                className="lq-form"
-                onSubmit={save}
-              >
+              <form className="lq-form" onSubmit={save}>
                 <div className="lq-two">
                   <label>
                     Course
@@ -514,16 +832,14 @@ export default function Quizzes() {
                       }
                       required
                     >
-                      <option value="">
-                        Select course
-                      </option>
+                      <option value="">Select course</option>
 
                       {courses.map((course) => (
                         <option
                           key={course._id}
                           value={course._id}
                         >
-                          {course.code} â€” {course.title}
+                          {course.code} - {course.title}
                         </option>
                       ))}
                     </select>
@@ -547,7 +863,7 @@ export default function Quizzes() {
 
                 <div className="lq-two">
                   <label>
-                    Closing date and time
+                    Attempt deadline - date and time
                     <input
                       type="datetime-local"
                       value={form.closesAt}
@@ -562,148 +878,158 @@ export default function Quizzes() {
                   </label>
 
                   <label>
-                    Instructions
+                    Time allowed per attempt - minutes
                     <input
-                      value={form.instructions}
-                      maxLength="1000"
+                      type="number"
+                      min="1"
+                      max="600"
+                      value={form.durationMinutes}
                       onChange={(event) =>
                         setForm({
                           ...form,
-                          instructions: event.target.value
+                          durationMinutes: event.target.value
                         })
                       }
-                      placeholder="Optional"
+                      required
                     />
+                    <small>
+                      Faculty can choose any duration from 1 to 600 minutes-for example, 3 or 45.
+                    </small>
                   </label>
                 </div>
 
-                {form.questions.map(
-                  (question, index) => (
-                    <div
-                      className="lq-question"
-                      key={question.key}
-                    >
-                      <div className="lq-section-head">
-                        <strong>
-                          Question {index + 1}
-                        </strong>
+                <label>
+                  Instructions
+                  <input
+                    value={form.instructions}
+                    maxLength="1000"
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        instructions: event.target.value
+                      })
+                    }
+                    placeholder="Optional"
+                  />
+                </label>
 
-                        {form.questions.length > 1 && (
-                          <button
-                            type="button"
-                            className="lq-danger"
-                            onClick={() =>
-                              setForm({
-                                ...form,
-                                questions:
-                                  form.questions.filter(
-                                    (_, position) =>
-                                      position !== index
-                                  )
-                              })
-                            }
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
+                {form.questions.map((question, index) => (
+                  <div
+                    className="lq-question"
+                    key={question.key}
+                  >
+                    <div className="lq-section-head">
+                      <strong>Question {index + 1}</strong>
 
+                      {form.questions.length > 1 && (
+                        <button
+                          type="button"
+                          className="lq-danger"
+                          onClick={() =>
+                            setForm({
+                              ...form,
+                              questions: form.questions.filter(
+                                (_, position) => position !== index
+                              )
+                            })
+                          }
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    <label>
+                      Question text
+                      <input
+                        value={question.text}
+                        maxLength="500"
+                        onChange={(event) =>
+                          updateQuestion(index, {
+                            text: event.target.value
+                          })
+                        }
+                        required
+                      />
+                    </label>
+
+                    <div className="lq-two">
+                      {question.options.map(
+                        (option, optionIndex) => (
+                          <label key={optionIndex}>
+                            Option {optionIndex + 1}
+                            <input
+                              value={option}
+                              maxLength="200"
+                              onChange={(event) => {
+                                const options = [
+                                  ...question.options
+                                ];
+
+                                options[optionIndex] =
+                                  event.target.value;
+
+                                updateQuestion(index, {
+                                  options
+                                });
+                              }}
+                              required
+                            />
+                          </label>
+                        )
+                      )}
+                    </div>
+
+                    <div className="lq-two">
                       <label>
-                        Question text
-                        <input
-                          value={question.text}
-                          maxLength="500"
+                        Correct answer
+                        <select
+                          value={question.correctIndex}
                           onChange={(event) =>
                             updateQuestion(index, {
-                              text: event.target.value
+                              correctIndex: Number(
+                                event.target.value
+                              )
+                            })
+                          }
+                        >
+                          {[0, 1, 2, 3].map((number) => (
+                            <option
+                              key={number}
+                              value={number}
+                            >
+                              Option {number + 1}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label>
+                        Marks
+                        <input
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={question.points}
+                          onChange={(event) =>
+                            updateQuestion(index, {
+                              points: Number(
+                                event.target.value
+                              )
                             })
                           }
                           required
                         />
                       </label>
-
-                      <div className="lq-two">
-                        {question.options.map(
-                          (option, optionIndex) => (
-                            <label key={optionIndex}>
-                              Option {optionIndex + 1}
-                              <input
-                                value={option}
-                                maxLength="200"
-                                onChange={(event) => {
-                                  const next = [
-                                    ...question.options
-                                  ];
-
-                                  next[optionIndex] =
-                                    event.target.value;
-
-                                  updateQuestion(index, {
-                                    options: next
-                                  });
-                                }}
-                                required
-                              />
-                            </label>
-                          )
-                        )}
-                      </div>
-
-                      <div className="lq-two">
-                        <label>
-                          Correct answer
-                          <select
-                            value={question.correctIndex}
-                            onChange={(event) =>
-                              updateQuestion(index, {
-                                correctIndex: Number(
-                                  event.target.value
-                                )
-                              })
-                            }
-                          >
-                            {[0, 1, 2, 3].map(
-                              (number) => (
-                                <option
-                                  key={number}
-                                  value={number}
-                                >
-                                  Option {number + 1}
-                                </option>
-                              )
-                            )}
-                          </select>
-                        </label>
-
-                        <label>
-                          Marks
-                          <input
-                            type="number"
-                            min="1"
-                            max="20"
-                            value={question.points}
-                            onChange={(event) =>
-                              updateQuestion(index, {
-                                points: Number(
-                                  event.target.value
-                                )
-                              })
-                            }
-                            required
-                          />
-                        </label>
-                      </div>
                     </div>
-                  )
-                )}
+                  </div>
+                ))}
 
                 <div className="lq-actions">
                   <button
                     type="button"
                     className="lq-secondary"
-                    disabled={
-                      form.questions.length >= 20
-                    }
+                    disabled={form.questions.length >= 20}
                     onClick={() =>
                       setForm({
                         ...form,
@@ -736,28 +1062,24 @@ export default function Quizzes() {
           <>
             <div className="lq-section-head">
               <h3>
-                {faculty
-                  ? "Your quizzes"
-                  : "Available quizzes"}
+                {faculty ? "Your quizzes" : "Available quizzes"}
               </h3>
-
               <span>{quizzes.length}</span>
             </div>
 
             {quizzes.length === 0 && (
               <div className="panel">
                 {student
-                  ? "No published quiz in your enrolled courses yet."
+                  ? "No published quiz is available in your enrolled courses."
                   : "No quizzes created yet."}
               </div>
             )}
 
             <div className="lq-grid">
               {quizzes.map((quiz) => {
-                const expired =
-                  new Date(
-                    quiz.closesAt
-                  ).getTime() <= Date.now();
+                const closed =
+                  quiz.closed ||
+                  new Date(quiz.closesAt).getTime() <= Date.now();
 
                 return (
                   <article
@@ -765,8 +1087,7 @@ export default function Quizzes() {
                     key={quiz._id}
                   >
                     <span className="lq-pill">
-                      {quiz.course?.code ||
-                        "COURSE"}
+                      {quiz.course?.code || "COURSE"}
                     </span>
 
                     <h3>{quiz.title}</h3>
@@ -777,28 +1098,29 @@ export default function Quizzes() {
 
                     <small>
                       <Clock3 size={15} />
-                      Closes {showDate(
-                        quiz.closesAt
-                      )}
+                      Deadline: {showDate(quiz.closesAt)}
+                    </small>
+
+                    <small>
+                      <Timer size={15} />
+                      Time allowed: {quiz.durationMinutes || 15} minutes
                     </small>
 
                     <small>
                       <BookOpen size={15} />
-                      {quiz.questionCount} questions Â·{" "}
+                      {quiz.questionCount} questions |{" "}
                       {quiz.maxScore} marks
                     </small>
 
                     {faculty ? (
                       <>
                         <small>
-                          {quiz.attemptCount} attempts Â·{" "}
-                          {quiz.isPublished
-                            ? "Published"
-                            : "Draft"}
+                          {quiz.attemptCount || 0} final attempts |{" "}
+                          {quiz.isPublished ? "Published" : "Draft"}
                         </small>
 
                         <div className="lq-actions">
-                          {!quiz.isPublished && (
+                          {!quiz.isPublished && !closed && (
                             <button
                               type="button"
                               className="lq-primary"
@@ -811,18 +1133,16 @@ export default function Quizzes() {
                                 )
                               }
                             >
-                              Publish
+                              Publish quiz
                             </button>
                           )}
 
                           <button
                             type="button"
                             className="lq-secondary"
-                            onClick={() =>
-                              openReview(quiz)
-                            }
+                            onClick={() => openReview(quiz)}
                           >
-                            Review
+                            Review attempts
                           </button>
 
                           {quiz.attemptCount > 0 &&
@@ -832,11 +1152,7 @@ export default function Quizzes() {
                                 className="lq-primary"
                                 disabled={busy}
                                 onClick={() =>
-                                  run(() =>
-                                    api.post(
-                                      `/quizzes/${quiz._id}/results`
-                                    )
-                                  )
+                                  publishResults(quiz)
                                 }
                               >
                                 Publish results
@@ -846,13 +1162,8 @@ export default function Quizzes() {
                           <button
                             type="button"
                             className="lq-secondary"
-                            disabled={
-                              busy ||
-                              quiz.attemptCount > 0
-                            }
-                            onClick={() =>
-                              edit(quiz)
-                            }
+                            disabled={busy || quiz.attemptCount > 0}
+                            onClick={() => edit(quiz)}
                           >
                             <Pencil size={15} />
                             Edit
@@ -861,23 +1172,8 @@ export default function Quizzes() {
                           <button
                             type="button"
                             className="lq-danger"
-                            disabled={
-                              busy ||
-                              quiz.attemptCount > 0
-                            }
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Delete "${quiz.title}"?`
-                                )
-                              ) {
-                                run(() =>
-                                  api.delete(
-                                    `/quizzes/${quiz._id}`
-                                  )
-                                );
-                              }
-                            }}
+                            disabled={busy || quiz.attemptCount > 0}
+                            onClick={() => removeQuiz(quiz)}
                           >
                             <Trash2 size={15} />
                             Delete
@@ -887,42 +1183,55 @@ export default function Quizzes() {
                     ) : (
                       <div className="lq-actions">
                         {quiz.attempted ? (
-                          quiz.result ? (
-                            <div className="lq-result">
-                              <CheckCircle2 size={18} />
-                              <div>
-                                <strong>
-                                  {quiz.result.score}/
-                                  {quiz.result.maxScore}
-                                </strong>
-
-                                {quiz.result.feedback && (
-                                  <p>
-                                    Feedback:{" "}
-                                    {quiz.result.feedback}
-                                  </p>
-                                )}
+                          <div>
+                            {quiz.result ? (
+                              <div className="lq-result">
+                                <CheckCircle2 size={18} />
+                                <div>
+                                  <strong>
+                                    {quiz.result.score}/
+                                    {quiz.result.maxScore}
+                                  </strong>
+                                  {quiz.result.feedback && (
+                                    <p>
+                                      Feedback:{" "}
+                                      {quiz.result.feedback}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <span>
-                              Submitted Â· Result
-                              pending
-                            </span>
-                          )
+                            ) : (
+                              <span>
+                                {quiz.expired
+                                  ? "Time expired | Result pending Faculty publication."
+                                  : "Submitted | Result pending Faculty publication."}
+                              </span>
+                            )}
+
+                            {quiz.reviewAvailable && (
+                              <button
+                                type="button"
+                                className="lq-secondary"
+                                disabled={busy}
+                                onClick={() =>
+                                  openStudentReview(quiz)
+                                }
+                              >
+                                Review answers
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <button
                             type="button"
                             className="lq-primary"
-                            disabled={
-                              busy || expired
-                            }
-                            onClick={() =>
-                              openQuiz(quiz)
-                            }
+                            disabled={busy || closed}
+                            onClick={() => openQuiz(quiz)}
                           >
-                            {expired
-                              ? "Closed"
+                            {closed
+                              ? "Deadline passed"
+                              : quiz.inProgress
+                              ? "Resume attempt"
                               : "Attempt quiz"}
                           </button>
                         )}
@@ -943,18 +1252,39 @@ export default function Quizzes() {
               <button
                 type="button"
                 className="lq-secondary"
-                onClick={() =>
-                  setPlaying(null)
-                }
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Close this window? The server timer keeps running; resume before it expires."
+                    )
+                  ) {
+                    setPlaying(null);
+                    setTimerDeadline(null);
+                    setSecondsLeft(null);
+                  }
+                }}
               >
                 Close
               </button>
             </div>
 
             <p>
-              One attempt only. Closes{" "}
-              {showDate(playing.closesAt)}.
+              Quiz deadline: {showDate(playing.closesAt)}
             </p>
+
+            <div
+              className={
+                secondsLeft !== null && secondsLeft <= 60
+                  ? "lq-timer danger"
+                  : "lq-timer"
+              }
+            >
+              <Timer size={18} />
+              Time remaining:{" "}
+              {secondsLeft === null
+                ? "..."
+                : formatSeconds(secondsLeft)}
+            </div>
 
             <form onSubmit={submitQuiz}>
               {playing.questions.map(
@@ -964,9 +1294,8 @@ export default function Quizzes() {
                     key={question._id}
                   >
                     <legend>
-                      {index + 1}.{" "}
-                      {question.text} (
-                      {question.points} marks)
+                      {index + 1}. {question.text}{" "}
+                      ({question.points} marks)
                     </legend>
 
                     {question.options.map(
@@ -977,23 +1306,18 @@ export default function Quizzes() {
                         >
                           <input
                             type="radio"
-                            name={
-                              question._id
-                            }
+                            name={question._id}
                             checked={
-                              answers[
-                                question._id
-                              ] === optionIndex
+                              answers[question._id] ===
+                              optionIndex
                             }
                             onChange={() =>
-                              setAnswers({
-                                ...answers,
-                                [question._id]:
-                                  optionIndex
-                              })
+                              saveAnswer(
+                                question._id,
+                                optionIndex
+                              )
                             }
                           />
-
                           {option}
                         </label>
                       )
@@ -1005,11 +1329,80 @@ export default function Quizzes() {
               <button
                 type="submit"
                 className="lq-primary"
-                disabled={busy}
+                disabled={
+                  busy ||
+                  savingAnswer ||
+                  secondsLeft === 0
+                }
               >
-                Submit quiz
+                {savingAnswer
+                  ? "Saving answer..."
+                  : "Submit quiz"}
               </button>
             </form>
+          </section>
+        )}
+
+        {studentReview && (
+          <section className="panel lq-current">
+            <div className="lq-section-head">
+              <div>
+                <h3>
+                  Answer review: {studentReview.title}
+                </h3>
+                <p>
+                  Marks: {studentReview.score}/
+                  {studentReview.maxScore}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="lq-secondary"
+                onClick={() => setStudentReview(null)}
+              >
+                Close review
+              </button>
+            </div>
+
+            {studentReview.feedback && (
+              <p>
+                Faculty feedback: {studentReview.feedback}
+              </p>
+            )}
+
+            {studentReview.questions.map(
+              (question, index) => (
+                <div
+                  className="lq-question"
+                  key={question.questionId}
+                >
+                  <strong>
+                    {index + 1}. {question.text}
+                  </strong>
+
+                  <p>
+                    Your answer:{" "}
+                    {question.selectedIndex === null
+                      ? "Not answered"
+                      : question.options[
+                          question.selectedIndex
+                        ]}
+                  </p>
+
+                  <p>
+                    Correct answer:{" "}
+                    {question.options[question.correctIndex]}
+                  </p>
+
+                  <span>
+                    {question.isCorrect
+                      ? `Correct | ${question.points} marks`
+                      : "Incorrect"}
+                  </span>
+                </div>
+              )
+            )}
           </section>
         )}
 
@@ -1017,25 +1410,20 @@ export default function Quizzes() {
           <section className="panel lq-current">
             <div className="lq-section-head">
               <h3>
-                Attempts Â·{" "}
-                {review.quiz.title}
+                Attempts | {review.quiz.title}
               </h3>
 
               <button
                 type="button"
                 className="lq-secondary"
-                onClick={() =>
-                  setReview(null)
-                }
+                onClick={() => setReview(null)}
               >
                 Close
               </button>
             </div>
 
             {review.attempts.length === 0 && (
-              <p>
-                No student has submitted yet.
-              </p>
+              <p>No final attempts yet.</p>
             )}
 
             {review.attempts.map(
@@ -1045,8 +1433,7 @@ export default function Quizzes() {
                   key={attempt._id}
                 >
                   <strong>
-                    {attempt.student?.name ||
-                      "Student"}
+                    {attempt.student?.name || "Student"}
                   </strong>
 
                   <small>
@@ -1056,47 +1443,41 @@ export default function Quizzes() {
                   </small>
 
                   <p>
-                    Auto-marked:{" "}
-                    {attempt.score}/
-                    {attempt.maxScore}
+                    Auto-marked: {attempt.score}/
+                    {attempt.maxScore} | {attempt.status}
                   </p>
 
                   <details>
-                    <summary>
-                      Review selected answers
-                    </summary>
+                    <summary>Review selected answers</summary>
 
                     {review.quiz.questions.map(
                       (question, index) => {
-                        const answer =
-                          attempt.answers.find(
-                            (item) =>
-                              idOf(
-                                item.questionId
-                              ) ===
-                              idOf(
-                                question._id
-                              )
-                          );
+                        const answer = attempt.answers.find(
+                          (item) =>
+                            idOf(item.questionId) ===
+                            idOf(question._id)
+                        );
+
+                        const selected =
+                          answer?.selectedIndex;
 
                         return (
-                          <p
-                            key={
-                              question._id
-                            }
-                          >
-                            {index + 1}.{" "}
-                            {question.text}
+                          <p key={question._id}>
+                            {index + 1}. {question.text}
                             <br />
-                            Selected:{" "}
-                            {question.options[
-                              answer?.selectedIndex
-                            ] || "â€”"}
+                            Student answer:{" "}
+                            {selected === undefined
+                              ? "Not answered"
+                              : question.options[selected]}
                             <br />
-                            Correct:{" "}
+                            Correct answer:{" "}
                             {question.options[
                               question.correctIndex
                             ]}
+                            <br />
+                            {selected === question.correctIndex
+                              ? "Correct"
+                              : "Incorrect"}
                           </p>
                         );
                       }
@@ -1109,19 +1490,14 @@ export default function Quizzes() {
                       rows="2"
                       maxLength="1000"
                       value={
-                        feedback[
-                          attempt._id
-                        ] ??
+                        feedback[attempt._id] ??
                         attempt.feedback ??
                         ""
                       }
-                      onChange={(
-                        event
-                      ) =>
+                      onChange={(event) =>
                         setFeedback({
                           ...feedback,
-                          [attempt._id]:
-                            event.target.value
+                          [attempt._id]: event.target.value
                         })
                       }
                     />
@@ -1131,11 +1507,7 @@ export default function Quizzes() {
                     type="button"
                     className="lq-secondary"
                     disabled={busy}
-                    onClick={() =>
-                      saveFeedback(
-                        attempt
-                      )
-                    }
+                    onClick={() => saveFeedback(attempt)}
                   >
                     Save feedback
                   </button>

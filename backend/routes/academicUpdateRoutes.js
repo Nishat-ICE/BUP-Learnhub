@@ -1,3 +1,4 @@
+const { getDepartmentUserIds, getDepartmentCourseIds } = require("../services/departmentScope");
 const express = require("express");
 const mongoose = require("mongoose");
 const Course = require("../models/Course");
@@ -206,7 +207,18 @@ router.get("/", async (req, res) => {
     const role = req.user.role;
     let filter = {};
 
-    if (role === "student" || role === "faculty") {
+    if (role === "staff") {
+      const [deptUserIds, deptCourseIds] = await Promise.all([
+        getDepartmentUserIds(req.user.department),
+        getDepartmentCourseIds(req.user.department)
+      ]);
+      filter = {
+        $or: [
+          { createdBy: { $in: deptUserIds } },
+          { course: { $in: deptCourseIds } }
+        ]
+      };
+    } else if (role === "student" || role === "faculty") {
       const courseFilter =
         role === "student"
           ? { students: req.user._id }

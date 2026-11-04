@@ -332,7 +332,7 @@ export default function Materials() {
                 >
                   {courses.map((course) => (
                     <option key={course._id} value={course._id}>
-                      {course.code} â€” {course.title}
+                      {course.code} - {course.title}
                     </option>
                   ))}
                 </select>
@@ -394,7 +394,7 @@ export default function Materials() {
                           title: event.target.value
                         })
                       }
-                      placeholder="e.g. Lecture 01 â€” Introduction"
+                      placeholder="e.g. Lecture 01 - Introduction"
                       maxLength="120"
                       required
                     />
@@ -422,7 +422,7 @@ export default function Materials() {
                   </label>
 
                   <label className="mat-full">
-                    Description Â· optional
+                    Description | optional
                     <textarea
                       rows="3"
                       maxLength="700"
@@ -439,8 +439,8 @@ export default function Materials() {
 
                   <label className="mat-full">
                     {editingId
-                      ? "Replace file Â· optional"
-                      : "File Â· required"}
+                      ? "Replace file | optional"
+                      : "File | required"}
                     <input
                       key={fileKey}
                       type="file"
@@ -452,7 +452,7 @@ export default function Materials() {
                       }
                     />
                     <small>
-                      PDF, DOCX, PPTX, JPG or PNG Â· maximum 10 MB
+                      PDF, DOCX, PPTX, JPG or PNG | maximum 10 MB
                     </small>
                     {file && (
                       <button

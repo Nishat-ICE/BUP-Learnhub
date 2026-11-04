@@ -55,7 +55,7 @@ function requiredText(value, maximum, label) {
 
   if (!cleaned || cleaned.length > maximum) {
     throw new Error(
-      `${label} must contain 1â€“${maximum} characters.`
+      `${label} must contain 1-${maximum} characters.`
     );
   }
 

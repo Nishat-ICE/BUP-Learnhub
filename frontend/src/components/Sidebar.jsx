@@ -1,3 +1,4 @@
+import { CalendarDays as RoutineIcon } from "lucide-react";
 import { MessageCircle as DiscussionsIcon } from "lucide-react";
 import { ListChecks as QuizNavIcon } from "lucide-react";
 import { FileText as MaterialsIcon } from "lucide-react";
@@ -49,6 +50,7 @@ export default function Sidebar() {
           <LayoutDashboard size={18} /> Dashboard
         </NavLink>
 
+        {role === "staff" && (<NavLink to="/courses"><BookOpen size={18} /> Courses</NavLink>)}
         {["student", "faculty"].includes(role) && (
           <>
             <NavLink to="/courses">
@@ -104,6 +106,14 @@ export default function Sidebar() {
           <NavLink to="/discussions">
             <DiscussionsIcon size={18} />
             Discussions
+          </NavLink>
+        )}
+        <NavLink to="/policies">
+          <span aria-hidden="true">#</span> Policies &amp; Guidelines
+        </NavLink>
+        {["staff", "student", "faculty"].includes(user.role) && (
+          <NavLink to="/routines">
+            <RoutineIcon size={18} /> Routines
           </NavLink>
         )}
 </nav>

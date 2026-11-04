@@ -1,3 +1,4 @@
+import { AuthorityDepartmentAnalytics } from "../components/RoleDashboardCharts.jsx";
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Layout from "../components/Layout.jsx";
@@ -143,7 +144,7 @@ export default function AuthorityPanel() {
               </button>
             </div>
 
-            <LeadershipReport report={report} />
+            <AuthorityDepartmentAnalytics report={report} />
 
             <div className="lead-panel">
               <h3>Other academic information</h3>

@@ -1,0 +1,304 @@
+.theory-page {
+  padding-bottom: 30px;
+}
+
+.theory-hero,
+.theory-heading,
+.theory-actions,
+.theory-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 13px;
+}
+
+.theory-hero {
+  color: #102a3a;
+}
+
+.theory-hero h2 {
+  margin: 7px 0;
+}
+
+.theory-hero p,
+.theory-help,
+.theory-card p {
+  color: #667085;
+  line-height: 1.65;
+}
+
+.theory-eyebrow {
+  color: #087a70;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+}
+
+.theory-message {
+  padding: 13px 16px;
+  margin-bottom: 18px;
+  border-radius: 12px;
+  font-weight: 750;
+}
+
+.theory-message.success {
+  background: #e7f7ef;
+  color: #176344;
+}
+
+.theory-message.error {
+  background: #fff0f0;
+  color: #982d35;
+}
+
+.theory-form,
+.theory-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.theory-form {
+  gap: 16px;
+}
+
+.theory-form label {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.theory-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.theory-form input,
+.theory-form select,
+.theory-form textarea,
+.theory-question-editor input,
+.theory-question-editor textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #dfe7e9;
+  border-radius: 11px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  outline: none;
+}
+
+.theory-form input:focus,
+.theory-form select:focus,
+.theory-form textarea:focus,
+.theory-question-editor input:focus,
+.theory-question-editor textarea:focus {
+  border-color: #087a70;
+  box-shadow: 0 0 0 4px rgba(8, 122, 112, .1);
+}
+
+.theory-question-editor {
+  display: grid;
+  gap: 14px;
+  margin: 15px 0;
+  padding: 18px;
+  border: 1px solid #e5ebee;
+  border-radius: 16px;
+  background: #fbfcfd;
+}
+
+.theory-question-editor > label,
+.theory-grade-question label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.theory-grade-question {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5ebee;
+}
+
+.theory-question-editor small {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.theory-timer {
+  padding: 10px 15px;
+  border-radius: 12px;
+  background: #e8f6f2;
+  color: #087a70;
+  font-weight: 900;
+}
+
+.theory-timer.danger {
+  background: #fff0f0;
+  color: #ad2631;
+}
+
+.theory-prompt,
+.theory-answer-text {
+  padding: 14px;
+  border-radius: 12px;
+  background: #f6f9fa;
+  color: #344054;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.theory-answer-text p {
+  margin: 7px 0 0;
+  line-height: 1.7;
+}
+
+.theory-card {
+  min-width: 0;
+  padding: 19px;
+  border: 1px solid #e6ecee;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 9px 25px rgba(8, 37, 56, .05);
+}
+
+.theory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.theory-tag {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 99px;
+  background: #e8f6f2;
+  color: #087a70;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.theory-card h4 {
+  margin: 12px 0 7px;
+  color: #102a3a;
+}
+
+.theory-card > small {
+  display: block;
+  margin-top: 8px;
+  color: #667085;
+}
+
+.theory-published-result {
+  width: 100%;
+  padding: 12px;
+  margin-top: 12px;
+  border-radius: 12px;
+  background: #e8f6f2;
+  color: #12634e;
+}
+
+.theory-published-result p {
+  margin-top: 7px;
+  font-size: 12px;
+}
+
+.theory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin-top: 15px;
+}
+
+.theory-actions > span {
+  color: #667085;
+  font-size: 12px;
+}
+
+html body .theory-page button.theory-primary,
+html body .theory-page button.theory-secondary,
+html body .theory-page button.theory-danger {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 10px 14px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 11px !important;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+html body .theory-page button.theory-primary {
+  color: #fff !important;
+  background: linear-gradient(110deg, #092b3e, #087a70) !important;
+}
+
+html body .theory-page button.theory-secondary {
+  color: #087a70 !important;
+  background: #e8f6f2 !important;
+  box-shadow: none !important;
+}
+
+html body .theory-page button.theory-danger {
+  color: #a5323c !important;
+  background: #fff0f1 !important;
+  box-shadow: none !important;
+}
+
+.theory-page button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .theory-two,
+  .theory-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .theory-heading {
+    align-items: flex-start;
+  }
+}
+.lq-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  margin-bottom: 18px;
+  border: 1px solid #dfe7e9;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(8, 37, 56, 0.05);
+}
+
+html body .lq-page button.lq-mode-btn {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 8px 14px !important;
+  border: none !important;
+  border-radius: 9px !important;
+  background: transparent !important;
+  color: #475467 !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+}
+
+html body .lq-page button.lq-mode-btn.active {
+  background: linear-gradient(110deg, #092b3e, #087a70) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(8, 122, 112, 0.18) !important;
+}
