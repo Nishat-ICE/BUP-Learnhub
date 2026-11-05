@@ -1,3 +1,4 @@
+import WeeklySchedule from "./pages/WeeklySchedule.jsx";
 import TheoryQuizzes from "./pages/TheoryQuizzes.jsx";
 import Routines from "./pages/Routines.jsx";
 import Policies from "./pages/Policies.jsx";
@@ -212,6 +213,14 @@ function App() {
             <TheoryRoleOnly>
               <TheoryQuizzes />
             </TheoryRoleOnly>
+          </PrivateRoute>
+        }
+      />
+          <Route
+        path="/weekly-schedule"
+        element={
+          <PrivateRoute>
+            <WeeklySchedule />
           </PrivateRoute>
         }
       />

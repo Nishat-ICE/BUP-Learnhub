@@ -59,7 +59,8 @@ function makeDashboard(
   allAssignments,
   allAnnouncements,
   allQuizzes = [],
-  allTheoryQuizzes = []
+  allTheoryQuizzes = [],
+  allAcademicUpdates = []
 ) {
   const role = user.role;
   const userId = getId(user._id || user.id);
@@ -211,7 +212,6 @@ function makeDashboard(
 
   const gradedSubmissions = allSubmissions.filter(isGraded).length;
 
-  // Student Progress depends on BOTH Task Completion (40%) AND Achieved Marks (60%)
   const progress = courses.slice(0, 6).map((course) => {
     const cId = getId(course._id);
     const relatedAssign = assignments.filter(
@@ -240,7 +240,6 @@ function makeDashboard(
           markPercents.push(mPct);
           totalWeightedProgress += 40 + mPct * 0.6;
         } else if (done) {
-          // Submitted but not graded yet -> 40% (awaiting marks)
           totalWeightedProgress += 40;
         }
       }
@@ -319,27 +318,12 @@ function makeDashboard(
       };
     }
 
-    const expected =
-      relatedAssign.length * (course.students?.length || 0);
-    const submitted = relatedAssign.reduce(
-      (count, assignment) => count + getSubmissionCount(assignment),
-      0
-    );
-
     return {
       id: cId,
       title: course.title,
       code: course.code,
-      percent:
-        expected > 0
-          ? Math.min(100, Math.round((submitted / expected) * 100))
-          : null,
-      detail:
-        relatedAssign.length === 0
-          ? "No assignments in this course yet"
-          : expected === 0
-          ? "No enrolled students yet"
-          : `${submitted} of ${expected} expected submissions`
+      percent: null,
+      detail: `${course.students?.length || 0} enrolled students`
     };
   });
 
@@ -399,7 +383,7 @@ function makeDashboard(
     ];
   }
 
-  const courseGraph = courses.slice(0, 8).map((course) => {
+  const courseGraph = courses.slice(0, 10).map((course) => {
     const related = assignments.filter(
       (assignment) => getId(assignment.course) === getId(course._id)
     );
@@ -418,7 +402,74 @@ function makeDashboard(
     };
   });
 
+  const weeklySchedule = [];
+
+  if (role === "student") {
+    for (const a of assignments) {
+      if (a.deadline) {
+        const done = Boolean(mySubmission(a));
+        weeklySchedule.push({
+          id: `assign-${getId(a._id)}`,
+          date: a.deadline,
+          kind: "assignment",
+          tag: `${courseById.get(getId(a.course))?.code || "Course"} | Assignment`,
+          title: a.title,
+          meta: done ? "Submitted" : "Due on this day"
+        });
+      }
+    }
+
+    for (const q of quizzes) {
+      if (q.closesAt) {
+        weeklySchedule.push({
+          id: `mcq-${getId(q._id)}`,
+          date: q.closesAt,
+          kind: "quiz",
+          tag: `${q.course?.code || courseById.get(getId(q.course))?.code || "Course"} | MCQ Quiz`,
+          title: q.title,
+          meta: q.attempted ? "Completed" : `${q.durationMinutes || 15} mins`
+        });
+      }
+    }
+
+    for (const tq of theoryQuizzes) {
+      if (tq.closesAt) {
+        weeklySchedule.push({
+          id: `theory-${getId(tq._id)}`,
+          date: tq.closesAt,
+          kind: "theory",
+          tag: `${tq.course?.code || courseById.get(getId(tq.course))?.code || "Course"} | Theory`,
+          title: tq.title,
+          meta: tq.attempted ? "Completed" : `${tq.durationMinutes || 15} mins`
+        });
+      }
+    }
+
+    for (const up of Array.isArray(allAcademicUpdates) ? allAcademicUpdates : []) {
+      if (up.kind === "reschedule" && up.newDate) {
+        weeklySchedule.push({
+          id: `resched-${getId(up._id)}`,
+          date: up.newDate,
+          kind: "reschedule",
+          tag: `${up.course?.code || up.courseCode || "Class"} | Rescheduled`,
+          title: up.course?.title || up.courseTitle || up.title,
+          meta: `${up.newStart || ""} - ${up.newEnd || ""} (Sec ${up.section || "All"})`
+        });
+      } else if (up.kind === "calendar" && up.date) {
+        weeklySchedule.push({
+          id: `cal-${getId(up._id)}`,
+          date: up.date,
+          kind: "calendar",
+          tag: `Academic Calendar`,
+          title: up.title,
+          meta: up.category || "University Event"
+        });
+      }
+    }
+  }
+
   return {
+    weeklySchedule,
     courseGraph,
     role,
     cards,
@@ -456,7 +507,8 @@ export default function Dashboard() {
           tasksResult,
           noticesResult,
           quizzesResult,
-          theoryResult
+          theoryResult,
+          updatesResult
         ] = await Promise.all([
           api.get("/courses"),
           api.get("/assignments"),
@@ -466,6 +518,9 @@ export default function Dashboard() {
             : Promise.resolve({ data: [] }),
           isStudentOrFaculty
             ? api.get("/theory-quizzes").catch(() => ({ data: [] }))
+            : Promise.resolve({ data: [] }),
+          role === "student"
+            ? api.get("/academic-updates").catch(() => ({ data: [] }))
             : Promise.resolve({ data: [] })
         ]);
 
@@ -477,7 +532,8 @@ export default function Dashboard() {
               tasksResult.data || [],
               noticesResult.data || [],
               quizzesResult.data || [],
-              theoryResult.data || []
+              theoryResult.data || [],
+              updatesResult.data || []
             )
           );
         }
@@ -615,41 +671,7 @@ export default function Dashboard() {
       </section>
 
       <section className="grid-two">
-        {data.role === "staff" && (
-          <div className="panel">
-            <div className="live-panel-head">
-              <h3>Course Activity</h3>
-              <Link to="/courses">View courses</Link>
-            </div>
-
-            {data.progress.length === 0 && (
-              <p className="live-empty">
-                No courses are available for your department yet.
-              </p>
-            )}
-
-            {data.progress.map((course) => (
-              <div className="progress-item live-progress" key={course.id}>
-                <div className="live-progress-heading">
-                  <strong>{course.code} | {course.title}</strong>
-                  <span>
-                    {course.percent === null ? "N/A" : `${course.percent}%`}
-                  </span>
-                </div>
-
-                {course.percent !== null && (
-                  <div className="bar">
-                    <div style={{ width: `${course.percent}%` }} />
-                  </div>
-                )}
-
-                <small className="live-meta">{course.detail}</small>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="panel" style={data.role !== "staff" ? { gridColumn: "1 / -1" } : undefined}>
+        <div className="panel" style={{ gridColumn: "1 / -1" }}>
           {isStudent ? (
             <>
               <div className="live-panel-head">

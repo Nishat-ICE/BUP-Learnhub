@@ -7,12 +7,19 @@ const User = require("../models/User");
 const Assignment = require("../models/Assignment");
 const Announcement = require("../models/Announcement");
 const { protect, authorize } = require("../middleware/authMiddleware");
-const { getDepartmentCourseIds } = require("../services/departmentScope");
+const {
+  sameDepartment,
+  getDepartmentCourseIds
+} = require("../services/departmentScope");
 
 const router = express.Router();
 
 const canManage = (course, user) =>
-  user.role === "staff" ||
+  (user.role === "staff" &&
+    sameDepartment(
+      course.department || course.faculty?.department,
+      user.department
+    )) ||
   (user.role === "faculty" &&
     String(course.faculty?._id || course.faculty) === String(user._id));
 
@@ -29,13 +36,25 @@ const sendError = (res, error) => {
   return res.status(500).json({ message: "Could not complete this request." });
 };
 
-async function resolveTargetFaculty(req, res) {
-  // Faculty auto-assigns to self
+async function resolveCourseAssignment(req, res) {
+  // If Faculty is creating/editing:
+  // - Faculty is automatically req.user
+  // - Department comes from the form selection (or defaults to faculty's department)
   if (req.user.role === "faculty") {
-    return req.user;
+    const selectedDept =
+      typeof req.body?.department === "string" && req.body.department.trim()
+        ? req.body.department.trim()
+        : req.user.department || "ICT";
+
+    return {
+      facultyUser: req.user,
+      courseDepartment: selectedDept
+    };
   }
 
-  // Staff can assign to ANY active Faculty email (no department restriction on email)
+  // If Staff is creating/editing:
+  // - Department is strictly Staff's registered department
+  // - Faculty is looked up by the email entered by Staff (any department allowed)
   const rawEmail =
     typeof req.body?.facultyEmail === "string"
       ? req.body.facultyEmail.trim().toLowerCase()
@@ -61,17 +80,23 @@ async function resolveTargetFaculty(req, res) {
     return null;
   }
 
-  return facultyUser;
+  return {
+    facultyUser,
+    courseDepartment: req.user.department || "ICT"
+  };
 }
 
 // GET /api/courses
-// Faculty sees ONLY their own assigned courses; Staff sees their department's courses
+// - Student: sees ONLY courses of their own registered department
+// - Faculty: sees ONLY courses assigned to their own account
+// - Staff: sees ONLY courses of their own registered department
 router.get("/", protect, async (req, res) => {
   try {
     let filter = {};
+
     if (req.user.role === "faculty") {
       filter = { faculty: req.user._id };
-    } else if (req.user.role === "staff") {
+    } else if (req.user.role === "student" || req.user.role === "staff") {
       const deptCourseIds = await getDepartmentCourseIds(req.user.department);
       filter = { _id: { $in: deptCourseIds } };
     }
@@ -115,15 +140,16 @@ router.post(
         });
       }
 
-      const assignedFaculty = await resolveTargetFaculty(req, res);
-      if (!assignedFaculty) return;
+      const resolved = await resolveCourseAssignment(req, res);
+      if (!resolved) return;
 
       const course = await Course.create({
         title: title.trim(),
         code: code.trim().toUpperCase(),
         description: typeof description === "string" ? description.trim() : "",
         credit: creditValue,
-        faculty: assignedFaculty._id
+        department: resolved.courseDepartment,
+        faculty: resolved.facultyUser._id
       });
 
       const populated = await Course.findById(course._id)
@@ -137,7 +163,7 @@ router.post(
   }
 );
 
-// PUT /api/courses/:id (Faculty own course & Staff)
+// PUT /api/courses/:id (Faculty own course & Staff own department course)
 router.put(
   "/:id",
   protect,
@@ -148,7 +174,10 @@ router.put(
         return res.status(400).json({ message: "Invalid course ID." });
       }
 
-      const course = await Course.findById(req.params.id);
+      const course = await Course.findById(req.params.id).populate(
+        "faculty",
+        "department"
+      );
 
       if (!course) {
         return res.status(404).json({ message: "Course not found." });
@@ -156,7 +185,7 @@ router.put(
 
       if (!canManage(course, req.user)) {
         return res.status(403).json({
-          message: "You can edit only your own assigned course."
+          message: "You do not have permission to edit this course."
         });
       }
 
@@ -179,15 +208,16 @@ router.put(
         return res.status(400).json({ message: "Invalid course credit." });
       }
 
-      const assignedFaculty = await resolveTargetFaculty(req, res);
-      if (!assignedFaculty) return;
+      const resolved = await resolveCourseAssignment(req, res);
+      if (!resolved) return;
 
       course.title = title.trim();
       course.code = code.trim().toUpperCase();
       course.description =
         typeof description === "string" ? description.trim() : "";
       course.credit = creditValue;
-      course.faculty = assignedFaculty._id;
+      course.department = resolved.courseDepartment;
+      course.faculty = resolved.facultyUser._id;
 
       await course.save();
 
@@ -216,7 +246,10 @@ router.delete(
         return res.status(400).json({ message: "Invalid course ID." });
       }
 
-      const course = await Course.findById(req.params.id);
+      const course = await Course.findById(req.params.id).populate(
+        "faculty",
+        "department"
+      );
 
       if (!course) {
         return res.status(404).json({ message: "Course not found." });
@@ -224,7 +257,7 @@ router.delete(
 
       if (!canManage(course, req.user)) {
         return res.status(403).json({
-          message: "You can delete only your own assigned course."
+          message: "You do not have permission to delete this course."
         });
       }
 
@@ -268,16 +301,27 @@ router.delete(
   }
 );
 
+// POST /api/courses/:id/enroll (Student can enroll ONLY in courses of their own department)
 router.post("/:id/enroll", protect, authorize("student"), async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ message: "Invalid course ID." });
     }
 
-    const course = await Course.findById(req.params.id);
+    const course = await Course.findById(req.params.id).populate(
+      "faculty",
+      "department"
+    );
 
     if (!course) {
       return res.status(404).json({ message: "Course not found." });
+    }
+
+    const courseDept = course.department || course.faculty?.department || "";
+    if (!sameDepartment(courseDept, req.user.department)) {
+      return res.status(403).json({
+        message: "This course belongs to another department."
+      });
     }
 
     const enrolled = course.students.some(

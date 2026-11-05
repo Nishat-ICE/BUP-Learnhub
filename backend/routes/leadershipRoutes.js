@@ -205,7 +205,7 @@ async function reportData() {
 
   const courseRows = courses.map((course) => {
     const cId = String(course._id);
-    const dept = ensureDept(course.faculty?.department || "Unassigned");
+    const dept = ensureDept(course.department || course.faculty?.department || "Unassigned");
 
     const relatedAssign = assignments.filter((a) => String(a.course) === cId);
     const subs = relatedAssign.flatMap((a) => a.submissions || []);

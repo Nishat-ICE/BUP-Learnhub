@@ -256,8 +256,7 @@ export function RoleDashboardCharts({ data }) {
     );
   }
 
-  // Staff has no graph
-  return null;
+    return null;
 }
 
 // ============================================================
@@ -583,31 +582,301 @@ function SmoothActivityGraph({ items }) {
   );
 }
 
+// Reference 1 Style: 3 Circular Analytics Gauges (Grade Avg, Completion, Graded)
+function RefAnalyticsTrio({ gradeAvg, completionRate, gradedRate }) {
+  const gVal = clamp(gradeAvg ?? 0, 0, 100);
+  const cVal = clamp(completionRate ?? 0, 0, 100);
+  const eVal = clamp(gradedRate ?? 0, 0, 100);
+
+  const r = 46;
+  const circ = 2 * Math.PI * r;
+  const cOffset = circ - (cVal / 100) * circ;
+  const eOffset = circ - (eVal / 100) * circ;
+
+  return (
+    <div className="ref-trio-grid">
+      {/* Gauge 1: Filled Gradient Circle like Ref 1 (Grade Avg) */}
+      <div className="ref-gauge-item">
+        <svg className="ref-gauge-svg" viewBox="0 0 120 120">
+          <defs>
+            <linearGradient id="refGradCyanPurple" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#06b6d4" />
+              <stop offset="55%" stopColor="#3b82f6" />
+              <stop offset="100%" stopColor="#8b5cf6" />
+            </linearGradient>
+          </defs>
+          <circle
+            cx="60"
+            cy="60"
+            r="48"
+            fill="url(#refGradCyanPurple)"
+            opacity="0.14"
+          />
+          <circle cx="60" cy="60" r="40" fill="url(#refGradCyanPurple)" />
+          <text x="60" y="66" textAnchor="middle" className="ref-gauge-text-light">
+            {gVal}%
+          </text>
+        </svg>
+        <span className="ref-gauge-label">Grade Avg</span>
+      </div>
+
+      {/* Gauge 2: Orange/Coral Two-Tone Ring like Ref 1 (Completion) */}
+      <div className="ref-gauge-item">
+        <svg className="ref-gauge-svg" viewBox="0 0 120 120">
+          <circle
+            cx="60"
+            cy="60"
+            r={r}
+            fill="none"
+            stroke="#f97316"
+            strokeOpacity="0.22"
+            strokeWidth="11"
+          />
+          <circle
+            cx="60"
+            cy="60"
+            r={r}
+            fill="none"
+            stroke="#fb923c"
+            strokeWidth="11"
+            strokeLinecap="round"
+            strokeDasharray={circ}
+            strokeDashoffset={cOffset}
+            transform="rotate(-90 60 60)"
+          />
+          <text x="60" y="66" textAnchor="middle" className="ref-gauge-text-dark">
+            {cVal}%
+          </text>
+        </svg>
+        <span className="ref-gauge-label">Completion</span>
+      </div>
+
+      {/* Gauge 3: Green/Lime Two-Tone Ring like Ref 1 (Graded) */}
+      <div className="ref-gauge-item">
+        <svg className="ref-gauge-svg" viewBox="0 0 120 120">
+          <circle
+            cx="60"
+            cy="60"
+            r={r}
+            fill="none"
+            stroke="#22c55e"
+            strokeOpacity="0.22"
+            strokeWidth="11"
+          />
+          <circle
+            cx="60"
+            cy="60"
+            r={r}
+            fill="none"
+            stroke="#10b981"
+            strokeWidth="11"
+            strokeLinecap="round"
+            strokeDasharray={circ}
+            strokeDashoffset={eOffset}
+            transform="rotate(-90 60 60)"
+          />
+          <text x="60" y="66" textAnchor="middle" className="ref-gauge-text-dark">
+            {eVal}%
+          </text>
+        </svg>
+        <span className="ref-gauge-label">Graded</span>
+      </div>
+    </div>
+  );
+}
+
+// Reference 2 Style: Paired Columns on Grid (Submitted vs Pending / Present vs Absent)
+function RefAttendanceColumns({ groups }) {
+  const maxVal = Math.max(
+    4,
+    ...groups.flatMap((g) => [Number(g.submitted) || 0, Number(g.pending) || 0])
+  );
+
+  return (
+    <div className="ref-att-wrap">
+      <div className="ref-att-stage">
+        <div className="ref-att-yaxis">
+          <span>100%</span>
+          <span>75%</span>
+          <span>50%</span>
+          <span>25%</span>
+          <span>0%</span>
+        </div>
+
+        <div className="ref-att-plot">
+          {groups.map((g) => {
+            const sub = Number(g.submitted) || 0;
+            const pen = Number(g.pending) || 0;
+            const tot = Math.max(1, sub + pen);
+            const subPct = Math.round((sub / tot) * 100);
+            const penPct = 100 - subPct;
+
+            const subH = Math.max(sub > 0 ? 12 : 4, Math.round((sub / maxVal) * 100));
+            const penH = Math.max(pen > 0 ? 12 : 4, Math.round((pen / maxVal) * 100));
+
+            return (
+              <div className="ref-att-group" key={g.label}>
+                <div className="ref-att-bars">
+                  <div className="ref-att-col">
+                    <span className="ref-att-tag">{sub} ({subPct}%)</span>
+                    <div
+                      className="ref-att-bar primary"
+                      style={{ height: `${subH}%` }}
+                    />
+                  </div>
+
+                  <div className="ref-att-col">
+                    <span className="ref-att-tag">{pen} ({penPct}%)</span>
+                    <div
+                      className="ref-att-bar secondary"
+                      style={{ height: `${penH}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="ref-att-xlabel">{g.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="ref-att-legend">
+        <span>
+          <i className="dot-primary" /> Submitted / Active
+        </span>
+        <span>
+          <i className="dot-secondary" /> Pending / Unsubmitted
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// Reference 2 Style: Two-Tone Bold Donut (Active/Pass % vs Pending %)
+function RefTwoToneDonut({ primaryPct, primaryLabel, secondaryLabel }) {
+  const p = clamp(primaryPct ?? 0, 0, 100);
+  const s = 100 - p;
+  const r = 52;
+  const circ = 2 * Math.PI * r;
+  const pLen = (p / 100) * circ;
+  const sLen = circ - pLen;
+
+  return (
+    <div className="ref-pass-donut">
+      <svg className="ref-pass-svg" viewBox="0 0 140 140">
+        <circle
+          cx="70"
+          cy="70"
+          r={r}
+          fill="none"
+          stroke="#fb923c"
+          strokeWidth="20"
+        />
+        <circle
+          cx="70"
+          cy="70"
+          r={r}
+          fill="none"
+          stroke="#4f46e5"
+          strokeWidth="20"
+          strokeDasharray={`${pLen} ${sLen}`}
+          transform="rotate(-90 70 70)"
+        />
+        <text x="70" y="75" textAnchor="middle" className="rdc-donut-val">
+          {p}%
+        </text>
+      </svg>
+
+      <div className="ref-pass-legend">
+        <span>
+          <i style={{ background: "#4f46e5" }} />
+          <strong>{p}%</strong> {primaryLabel}
+        </span>
+        <span>
+          <i style={{ background: "#fb923c" }} />
+          <strong>{s}%</strong> {secondaryLabel}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function AdminDashboardCharts({ report }) {
   if (!report) return null;
 
   const roleColors = {
     student: "#0f766e",
-    faculty: "#0b3b4a",
+    faculty: "#4f46e5",
     staff: "#d6a84f",
-    admin: "#6d28d9",
+    admin: "#7c3aed",
     authority: "#ea580c"
   };
 
-  const segments = (report.users?.byRole || []).map((r) => ({
-    label: r.role.charAt(0).toUpperCase() + r.role.slice(1),
-    value: r.total || 0,
-    color: roleColors[r.role] || "#64748b"
-  }));
+  const totalUsers = Math.max(1, Number(report.users?.total) || 1);
+  const activeUsers = Number(report.users?.active) || 0;
 
-  const platformBars = [
-    { id: "courses", label: "Courses", count: report.courses || 0 },
-    { id: "enrollments", label: "Enrollments", count: report.enrollments || 0 },
-    { id: "materials", label: "Materials", count: report.materials || 0 },
-    { id: "assignments", label: "Assignments", count: report.assignments || 0 },
-    { id: "assign_subs", label: "Assign. Submitted", count: report.submissions || 0 },
-    { id: "quizzes", label: "Quizzes", count: report.quizzes || 0 },
-    { id: "quiz_subs", label: "Quiz Submitted", count: report.quizAttempts || 0 }
+  const segments = (report.users?.byRole || []).map((r) => {
+    const val = Number(r.total) || 0;
+    return {
+      role: r.role,
+      label: r.role.charAt(0).toUpperCase() + r.role.slice(1),
+      value: val,
+      active: Number(r.active) || 0,
+      pct: Math.round((val / totalUsers) * 100),
+      color: roleColors[r.role] || "#64748b"
+    };
+  });
+
+  const courseRows = report.courseRows || [];
+  const assignCount = Number(report.assignments) || 0;
+  const quizCount = Number(report.quizzes) || 0;
+  const assignSubs = Number(report.submissions) || 0;
+  const quizSubs = Number(report.quizAttempts) || 0;
+  const gradedSubs = Number(report.graded) || 0;
+
+  // Accurate per-course expected submissions: sum of (course.assignments * course.students)
+  const calcExpectedAssign = courseRows.reduce(
+    (sum, c) => sum + (Number(c.assignments) || 0) * (Number(c.students) || 0),
+    0
+  );
+  const calcExpectedQuiz = courseRows.reduce(
+    (sum, c) => sum + (Number(c.quizzes) || 0) * (Number(c.students) || 0),
+    0
+  );
+
+  const expectedAssign = Math.max(assignSubs, calcExpectedAssign || assignSubs);
+  const expectedQuiz = Math.max(quizSubs, calcExpectedQuiz || quizSubs);
+  const totalExpected = expectedAssign + expectedQuiz;
+  const totalSubmitted = assignSubs + quizSubs;
+
+  const completionRate = totalExpected
+    ? Math.min(100, Math.round((totalSubmitted / totalExpected) * 100))
+    : totalSubmitted > 0
+    ? 100
+    : 0;
+
+  const gradedRate = assignSubs
+    ? Math.min(100, Math.round((gradedSubs / assignSubs) * 100))
+    : 0;
+
+  const gradeAvg = report.averageGrade ?? 0;
+
+  const attendanceGroups = [
+    {
+      label: `Assignments (${assignCount})`,
+      submitted: assignSubs,
+      pending: Math.max(0, expectedAssign - assignSubs)
+    },
+    {
+      label: `Quizzes (${quizCount})`,
+      submitted: quizSubs,
+      pending: Math.max(0, expectedQuiz - quizSubs)
+    },
+    {
+      label: "Evaluation",
+      submitted: gradedSubs,
+      pending: Math.max(0, assignSubs - gradedSubs)
+    }
   ];
 
   return (
@@ -615,25 +884,78 @@ export function AdminDashboardCharts({ report }) {
       <div className="lead-panel rdc-card">
         <div className="rdc-head">
           <div>
-            <span className="rdc-kicker">USER DISTRIBUTION</span>
+            <span className="rdc-kicker">USER DISTRIBUTION &amp; SHARE</span>
             <h3>System Users by Role</h3>
           </div>
         </div>
+
+        {/* Top summary pills so the card is balanced from the top */}
+        <div className="rdc-area-pills">
+          <div className="rdc-area-pill">
+            <span>Active Accounts</span>
+            <strong>
+              {activeUsers} / {report.users?.total || 0}
+            </strong>
+          </div>
+          <div className="rdc-area-pill">
+            <span>Active Courses</span>
+            <strong>{report.courses || 0}</strong>
+          </div>
+          <div className="rdc-area-pill">
+            <span>Total Enrollments</span>
+            <strong>{report.enrollments || 0}</strong>
+          </div>
+        </div>
+
         <MultiSegmentDonut
           segments={segments}
           centerTop={report.users?.total || 0}
           centerBottom="Total Users"
         />
+
+        <div className="ref-divider" />
+
+        {/* Role share progress bars at the bottom of the left card */}
+        <div className="rdc-role-bars">
+          {segments.map((seg) => (
+            <div className="rdc-role-bar-row" key={seg.role}>
+              <div className="rdc-role-bar-label">
+                <span className="rdc-dot" style={{ background: seg.color }} />
+                <strong>{seg.label}</strong>
+              </div>
+              <div className="rdc-role-bar-track">
+                <div
+                  style={{
+                    width: `${Math.max(seg.value > 0 ? seg.pct : 0, 4)}%`,
+                    background: seg.color
+                  }}
+                />
+              </div>
+              <span className="rdc-role-bar-val">
+                {seg.value} ({seg.pct}%)
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="lead-panel rdc-card">
         <div className="rdc-head">
           <div>
-            <span className="rdc-kicker">PLATFORM ANALYTICS CURVE</span>
-            <h3>System Modules &amp; Activity Graph</h3>
+            <span className="rdc-kicker">ASSESSMENT &amp; SUBMISSION ANALYTICS</span>
+            <h3>Grade Avg, Completion &amp; Submission Ratio</h3>
           </div>
         </div>
-        <SmoothActivityGraph items={platformBars} />
+
+        <RefAnalyticsTrio
+          gradeAvg={gradeAvg}
+          completionRate={completionRate}
+          gradedRate={gradedRate}
+        />
+
+        <div className="ref-divider" />
+
+        <RefAttendanceColumns groups={attendanceGroups} />
       </div>
     </div>
   );
@@ -751,6 +1073,7 @@ export function AuthorityDepartmentAnalytics({ report }) {
         enrollments: activeDept.enrollments,
         assignments: activeDept.assignments,
         submissions: activeDept.submissions,
+        graded: activeDept.graded || 0,
         quizzes: activeDept.quizzes,
         quizAttempts: activeDept.quizAttempts,
         averageGrade: activeDept.averageGrade,
@@ -768,12 +1091,58 @@ export function AuthorityDepartmentAnalytics({ report }) {
         enrollments: report.enrollments || 0,
         assignments: report.assignments || 0,
         submissions: report.submissions || 0,
+        graded: report.graded || 0,
         quizzes: report.quizzes || 0,
         quizAttempts: report.quizAttempts || 0,
         averageGrade: report.averageGrade,
         materials: report.materials || 0,
         routines: depts.reduce((s, d) => s + (d.routines || 0), 0)
       };
+
+  const activeCourses = activeDept ? activeDept.courseRows || [] : report.courseRows || [];
+
+  const calcExpectedAssign = activeCourses.reduce(
+    (sum, c) => sum + (Number(c.assignments) || 0) * (Number(c.students) || 0),
+    0
+  );
+  const calcExpectedQuiz = activeCourses.reduce(
+    (sum, c) => sum + (Number(c.quizzes) || 0) * (Number(c.students) || 0),
+    0
+  );
+
+  const expectedAssign = Math.max(
+    summary.submissions,
+    calcExpectedAssign || summary.submissions
+  );
+  const expectedQuiz = Math.max(
+    summary.quizAttempts,
+    calcExpectedQuiz || summary.quizAttempts
+  );
+  const totalExpected = expectedAssign + expectedQuiz;
+  const totalDone = summary.submissions + summary.quizAttempts;
+
+  const completionPct = totalExpected
+    ? Math.min(100, Math.round((totalDone / totalExpected) * 100))
+    : totalDone > 0
+    ? 100
+    : 0;
+
+  const gradedPct = summary.submissions
+    ? Math.min(100, Math.round((summary.graded / summary.submissions) * 100))
+    : 0;
+
+  const refGroups = [
+    {
+      label: "Assignments",
+      submitted: summary.submissions,
+      pending: Math.max(0, expectedAssign - summary.submissions)
+    },
+    {
+      label: "Quizzes",
+      submitted: summary.quizAttempts,
+      pending: Math.max(0, expectedQuiz - summary.quizAttempts)
+    }
+  ];
 
   const deptGraphItems = depts.map((d) => ({
     id: d.key,
@@ -798,13 +1167,14 @@ export function AuthorityDepartmentAnalytics({ report }) {
 
   return (
     <>
+      {/* 1. FILTER BAR AT VERY TOP */}
       <div className="lead-panel rdc-filter-bar">
         <div>
           <span className="rdc-kicker">DEPARTMENT FILTER &amp; EXPORT</span>
           <h3>
             {activeDept
-              ? `${activeDept.department} Department Summary`
-              : "All Departments Summary Overview"}
+              ? `${activeDept.department} Department Visual Analytics`
+              : "All Departments Visual Analytics Overview"}
           </h3>
         </div>
 
@@ -832,26 +1202,45 @@ export function AuthorityDepartmentAnalytics({ report }) {
         </div>
       </div>
 
-      <div className="lead-metrics">
-        {[
-          ["Students", summary.students],
-          ["Faculty", summary.faculty],
-          ["Staff", summary.staff],
-          ["Courses", summary.courses],
-          ["Enrollments", summary.enrollments],
-          ["Assignments", summary.assignments],
-          ["Submissions", summary.submissions],
-          ["Quizzes", summary.quizzes],
-          ["Quiz Attempts", summary.quizAttempts],
-          ["Learning Materials", summary.materials],
-          ["Routines", summary.routines],
-          ["Average Grade", summary.averageGrade ?? "-"]
-        ].map(([label, value]) => (
-          <div className="lead-metric" key={label}>
-            <span>{label}</span>
-            <strong>{value}</strong>
+      {/* 2. ALL GRAPHS RIGHT AT THE TOP OF AUTHORITY DASHBOARD */}
+      <div className="ref-authority-trio">
+        <div className="lead-panel rdc-card">
+          <div className="rdc-head">
+            <div>
+              <span className="rdc-kicker">ANALYTICS GAUGES</span>
+              <h3>Grade Avg, Completion &amp; Graded %</h3>
+            </div>
           </div>
-        ))}
+          <RefAnalyticsTrio
+            gradeAvg={summary.averageGrade ?? 0}
+            completionRate={completionPct}
+            gradedRate={gradedPct}
+          />
+        </div>
+
+        <div className="lead-panel rdc-card">
+          <div className="rdc-head">
+            <div>
+              <span className="rdc-kicker">SUBMISSION ATTENDANCE</span>
+              <h3>Submitted vs Pending Tasks</h3>
+            </div>
+          </div>
+          <RefAttendanceColumns groups={refGroups} />
+        </div>
+
+        <div className="lead-panel rdc-card">
+          <div className="rdc-head">
+            <div>
+              <span className="rdc-kicker">PARTICIPATION RATIO</span>
+              <h3>Active vs Pending Ratio</h3>
+            </div>
+          </div>
+          <RefTwoToneDonut
+            primaryPct={completionPct}
+            primaryLabel="Submitted"
+            secondaryLabel="Pending"
+          />
+        </div>
       </div>
 
       <div className="rdc-admin-grid">
@@ -951,6 +1340,29 @@ export function AuthorityDepartmentAnalytics({ report }) {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* 3. SUMMARY METRIC CARDS & TABLE BELOW THE GRAPHS */}
+      <div className="lead-metrics">
+        {[
+          ["Students", summary.students],
+          ["Faculty", summary.faculty],
+          ["Staff", summary.staff],
+          ["Courses", summary.courses],
+          ["Enrollments", summary.enrollments],
+          ["Assignments", summary.assignments],
+          ["Submissions", summary.submissions],
+          ["Quizzes", summary.quizzes],
+          ["Quiz Attempts", summary.quizAttempts],
+          ["Learning Materials", summary.materials],
+          ["Routines", summary.routines],
+          ["Average Grade", summary.averageGrade ?? "-"]
+        ].map(([label, value]) => (
+          <div className="lead-metric" key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
       </div>
 
       <div className="lead-panel">

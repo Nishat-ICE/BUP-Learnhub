@@ -4,22 +4,42 @@ import api from "../api/api";
 import { BookOpen, Pencil, Trash2, Users } from "lucide-react";
 import "../styles/crud.css";
 
-const initialForm = {
-  title: "",
-  code: "",
-  description: "",
-  credit: "3",
-  facultyEmail: ""
-};
+const DEPARTMENTS = [
+  "ICT",
+  "CSE",
+  "ES",
+  "Economics",
+  "English",
+  "Law",
+  "Business Administration",
+  "Public Administration",
+  "International Relations",
+  "Sociology",
+  "Development Studies",
+  "Mass Communication and Journalism",
+  "Disaster and Human Security Management",
+  "Peace, Conflict and Human Rights Studies",
+  "University Administration"
+];
 
 const Courses = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userId = String(user.id || user._id || "");
   const isStaff = user.role === "staff";
-  const canCreate = user.role === "faculty" || user.role === "staff";
+  const isFaculty = user.role === "faculty";
+  const canCreate = isFaculty || isStaff;
+
+  const makeInitialForm = () => ({
+    title: "",
+    code: "",
+    description: "",
+    credit: "3",
+    department: user.department || "ICT",
+    facultyEmail: ""
+  });
 
   const [courses, setCourses] = useState([]);
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState(makeInitialForm);
   const [editingId, setEditingId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -42,7 +62,7 @@ const Courses = () => {
   }, []);
 
   const reset = () => {
-    setForm(initialForm);
+    setForm(makeInitialForm());
     setEditingId(null);
   };
 
@@ -57,6 +77,7 @@ const Courses = () => {
         code: form.code,
         description: form.description,
         credit: form.credit,
+        ...(isFaculty ? { department: form.department } : {}),
         ...(isStaff ? { facultyEmail: form.facultyEmail } : {})
       };
 
@@ -87,6 +108,8 @@ const Courses = () => {
       code: course.code || "",
       description: course.description || "",
       credit: String(course.credit ?? 3),
+      department:
+        course.department || course.faculty?.department || user.department || "ICT",
       facultyEmail: course.faculty?.email || ""
     });
     setNotice(null);
@@ -182,6 +205,25 @@ const Courses = () => {
               />
             </label>
 
+            {isFaculty && (
+              <label className="crud-wide">
+                Department (Students of this department will see this course)
+                <select
+                  value={form.department}
+                  onChange={(e) =>
+                    setForm({ ...form, department: e.target.value })
+                  }
+                  required
+                >
+                  {DEPARTMENTS.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
             {isStaff && (
               <label className="crud-wide">
                 Faculty Email (Assign Course To)
@@ -222,7 +264,7 @@ const Courses = () => {
         <div className="panel">
           {user.role === "faculty"
             ? "No courses are assigned to your faculty account yet."
-            : "No courses created yet."}
+            : "No courses available for your department yet."}
         </div>
       )}
 
@@ -237,6 +279,9 @@ const Courses = () => {
             (student) => String(student._id || student) === userId
           );
 
+          const courseDept =
+            course.department || course.faculty?.department || "ICT";
+
           return (
             <article className="course-card" key={course._id}>
               <div className="course-top">
@@ -247,6 +292,7 @@ const Courses = () => {
               <h3>{course.title}</h3>
               <p>{course.description || "No description provided."}</p>
 
+              <small>Department: {courseDept}</small>
               <small>
                 Faculty: {course.faculty?.name || "Not assigned"}
                 {isStaff && course.faculty?.email

@@ -15,6 +15,7 @@ const courseSchema = new mongoose.Schema(
 
     description: String,
 
+    department: { type: String, default: "ICT", index: true },
     credit: {
       type: Number,
       default: 3

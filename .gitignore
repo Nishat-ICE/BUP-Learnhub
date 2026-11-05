@@ -51,3 +51,4 @@ dashboard-backup-*/
 *.backup-*
 *.zip
 /local-setup-files/
+SEEDED_ACCOUNTS_LIST.txt

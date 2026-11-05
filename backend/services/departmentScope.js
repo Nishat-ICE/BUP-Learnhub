@@ -10,39 +10,22 @@ function canonicalDepartment(value) {
 
   if (!text) return "";
 
-  if (
-    text === "ict" ||
-    text.includes("informationandcommunicationtechnology")
-  ) {
-    return "ict";
-  }
-
-  if (
-    text === "cse" ||
-    text.includes("computerscienceandengineering")
-  ) {
-    return "cse";
-  }
-
-  if (
-    text === "es" ||
-    text.includes("environmentalscience")
-  ) {
-    return "es";
-  }
-
-  if (
-    text === "bba" ||
-    text.includes("businessadministration")
-  ) {
-    return "bba";
-  }
-
-  if (
-    text === "ir" ||
-    text.includes("internationalrelations")
-  ) {
-    return "ir";
+  if (text === "ict" || text.includes("informationandcommunicationtechnology")) return "ict";
+  if (text === "cse" || text.includes("computerscienceandengineering")) return "cse";
+  if (text === "es" || text.includes("environmentalscience")) return "es";
+  if (text === "econ" || text.includes("economics")) return "economics";
+  if (text === "eng" || text.includes("english")) return "english";
+  if (text === "law") return "law";
+  if (text === "bba" || text.includes("businessadministration")) return "bba";
+  if (text === "pa" || text.includes("publicadministration")) return "publicadministration";
+  if (text === "ir" || text.includes("internationalrelations")) return "ir";
+  if (text === "soc" || text.includes("sociology")) return "sociology";
+  if (text === "ds" || text.includes("developmentstudies")) return "developmentstudies";
+  if (text === "mcj" || text.includes("masscommunicationandjournalism")) return "mcj";
+  if (text === "dhsm" || text.includes("disasterandhumansecuritymanagement")) return "dhsm";
+  if (text === "pchrs" || text.includes("peaceconflictandhumanrightsstudies")) return "pchrs";
+  if (text === "uadm" || text === "administration" || text.includes("universityadministration")) {
+    return "universityadministration";
   }
 
   return text;
@@ -67,14 +50,20 @@ async function getDepartmentUserIds(department, roleFilter = null) {
 }
 
 async function getDepartmentCourseIds(department) {
-  const facultyIds = await getDepartmentUserIds(department, "faculty");
-  if (!facultyIds.length) return [];
+  const targetKey = canonicalDepartment(department);
+  if (!targetKey) return [];
 
-  const courses = await Course.find({ faculty: { $in: facultyIds } })
-    .select("_id")
+  const courses = await Course.find()
+    .populate("faculty", "department")
+    .select("_id department faculty")
     .lean();
 
-  return courses.map((c) => c._id);
+  return courses
+    .filter((c) => {
+      const courseDept = c.department || c.faculty?.department || "";
+      return canonicalDepartment(courseDept) === targetKey;
+    })
+    .map((c) => c._id);
 }
 
 module.exports = {
