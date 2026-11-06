@@ -25,15 +25,10 @@ const errorMessage = (error) =>
   "Routine request failed.";
 
 export default function Routines() {
-  const user = JSON.parse(
-    localStorage.getItem("user") || "{}"
-  );
-
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
   const isStaff = user.role === "staff";
   const department =
-    typeof user.department === "string"
-      ? user.department.trim()
-      : "";
+    typeof user.department === "string" ? user.department.trim() : "";
 
   const [routines, setRoutines] = useState([]);
   const [form, setForm] = useState(newForm);
@@ -43,6 +38,9 @@ export default function Routines() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
+
+  // In-app Routine Viewer Modal state
+  const [viewer, setViewer] = useState(null);
 
   async function loadRoutines() {
     const response = await api.get("/routines");
@@ -60,6 +58,13 @@ export default function Routines() {
       .finally(() => setLoading(false));
   }, []);
 
+  function closeViewer() {
+    if (viewer?.url) {
+      URL.revokeObjectURL(viewer.url);
+    }
+    setViewer(null);
+  }
+
   function resetForm() {
     setEditingId(null);
     setForm(newForm());
@@ -69,21 +74,15 @@ export default function Routines() {
 
   function editRoutine(item) {
     setEditingId(item._id);
-
     setForm({
       title: item.title || "",
       description: item.description || "",
       term: item.term || ""
     });
-
     setFile(null);
     setFileKey((current) => current + 1);
     setMessage(null);
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth"
-    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function saveRoutine(event) {
@@ -93,8 +92,7 @@ export default function Routines() {
     if (!department) {
       setMessage({
         type: "error",
-        text:
-          "Your account has no department assigned. Ask Admin to update your profile."
+        text: "Your account has no department assigned. Ask Admin to update your profile."
       });
       return;
     }
@@ -119,13 +117,9 @@ export default function Routines() {
 
     try {
       const body = new FormData();
-
       body.append("title", form.title.trim());
       body.append("description", form.description.trim());
       body.append("term", form.term.trim());
-
-      // Department and section are deliberately not sent.
-      // Server obtains the department from the Staff account.
 
       if (file) {
         body.append("file", file);
@@ -138,7 +132,6 @@ export default function Routines() {
       }
 
       const wasEditing = Boolean(editingId);
-
       resetForm();
       await loadRoutines();
 
@@ -168,11 +161,9 @@ export default function Routines() {
 
     try {
       await api.delete(`/routines/${item._id}`);
-
       if (editingId === item._id) {
         resetForm();
       }
-
       await loadRoutines();
 
       setMessage({
@@ -189,65 +180,73 @@ export default function Routines() {
     }
   }
 
-  async function accessFile(item, download) {
+  async function viewRoutineInline(item) {
     setBusy(true);
     setMessage(null);
 
-    let previewTab = null;
-
-    if (!download) {
-      previewTab = window.open("about:blank", "_blank");
-
-      if (previewTab) {
-        previewTab.opener = null;
-        previewTab.document.write(
-          "<p style='font:16px sans-serif;padding:24px'>Opening routine...</p>"
-        );
-      }
-    }
-
     try {
-      const response = await api.get(
-        `/routines/${item._id}/file`,
-        {
-          params: download ? { download: 1 } : {},
-          responseType: "blob"
-        }
-      );
+      const response = await api.get(`/routines/${item._id}/file`, {
+        responseType: "blob"
+      });
 
-      const blob = new Blob(
-        [response.data],
-        {
-          type:
-            response.data.type ||
-            item.mimeType ||
-            "application/octet-stream"
-        }
-      );
+      const mime =
+        item.mimeType ||
+        response.data.type ||
+        "application/octet-stream";
 
+      const blob = new Blob([response.data], { type: mime });
       const objectUrl = URL.createObjectURL(blob);
 
-      if (!download && previewTab) {
-        previewTab.location.href = objectUrl;
-      } else {
-        if (previewTab) previewTab.close();
+      const isImage = /^image\//i.test(mime) || /\.(png|jpg|jpeg)$/i.test(item.originalName || "");
+      const isPdf = mime === "application/pdf" || /\.pdf$/i.test(item.originalName || "");
 
-        const link = document.createElement("a");
-        link.href = objectUrl;
-        link.download =
-          item.originalName || "routine";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+      if (viewer?.url) {
+        URL.revokeObjectURL(viewer.url);
       }
 
-      window.setTimeout(
-        () => URL.revokeObjectURL(objectUrl),
-        120000
-      );
+      setViewer({
+        title: item.title,
+        originalName: item.originalName,
+        department: item.department,
+        term: item.term,
+        url: objectUrl,
+        isImage,
+        isPdf
+      });
     } catch (error) {
-      if (previewTab) previewTab.close();
+      setMessage({
+        type: "error",
+        text: errorMessage(error)
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
 
+  async function downloadRoutineFile(item) {
+    setBusy(true);
+    setMessage(null);
+
+    try {
+      const response = await api.get(`/routines/${item._id}/file`, {
+        params: { download: 1 },
+        responseType: "blob"
+      });
+
+      const blob = new Blob([response.data], {
+        type: item.mimeType || response.data.type || "application/octet-stream"
+      });
+
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = item.originalName || "routine";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    } catch (error) {
       setMessage({
         type: "error",
         text: errorMessage(error)
@@ -262,27 +261,19 @@ export default function Routines() {
       <div className="routine-page">
         <section className="panel routine-hero">
           <div>
-            <span className="routine-eyebrow">
-              ACADEMIC TIMETABLES
-            </span>
-
+            <span className="routine-eyebrow">ACADEMIC TIMETABLES</span>
             <h2>Class Routines</h2>
-
             <p>
               {isStaff
                 ? "Upload routines for the department assigned to your Staff account."
-                : "View published routines for your registered department. Routines apply to all sections."}
+                : "View or download published routines for your registered department."}
             </p>
           </div>
-
           <CalendarDays size={32} />
         </section>
 
         {message && (
-          <div
-            className={`routine-message ${message.type}`}
-            role="alert"
-          >
+          <div className={`routine-message ${message.type}`} role="alert">
             {message.text}
           </div>
         )}
@@ -291,15 +282,8 @@ export default function Routines() {
           <section className="panel">
             <div className="routine-heading">
               <div>
-                <span className="routine-eyebrow">
-                  STAFF WORKSPACE
-                </span>
-
-                <h3>
-                  {editingId
-                    ? "Edit routine"
-                    : "Upload a routine"}
-                </h3>
+                <span className="routine-eyebrow">STAFF WORKSPACE</span>
+                <h3>{editingId ? "Edit routine" : "Upload a routine"}</h3>
               </div>
 
               {editingId && (
@@ -313,22 +297,14 @@ export default function Routines() {
               )}
             </div>
 
-            
-
-            <form
-              className="routine-form"
-              onSubmit={saveRoutine}
-            >
+            <form className="routine-form" onSubmit={saveRoutine}>
               <label>
                 Routine title
                 <input
                   value={form.title}
                   maxLength="120"
                   onChange={(event) =>
-                    setForm({
-                      ...form,
-                      title: event.target.value
-                    })
+                    setForm({ ...form, title: event.target.value })
                   }
                   placeholder="e.g. ICT Semester 5 Routine"
                   required
@@ -341,10 +317,7 @@ export default function Routines() {
                   value={form.term}
                   maxLength="80"
                   onChange={(event) =>
-                    setForm({
-                      ...form,
-                      term: event.target.value
-                    })
+                    setForm({ ...form, term: event.target.value })
                   }
                   placeholder="e.g. Fall 2026"
                 />
@@ -357,10 +330,7 @@ export default function Routines() {
                   maxLength="700"
                   value={form.description}
                   onChange={(event) =>
-                    setForm({
-                      ...form,
-                      description: event.target.value
-                    })
+                    setForm({ ...form, description: event.target.value })
                   }
                   placeholder="Additional routine information"
                 />
@@ -373,16 +343,12 @@ export default function Routines() {
                   type="file"
                   accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.pptx"
                   onChange={(event) =>
-                    setFile(
-                      event.target.files?.[0] || null
-                    )
+                    setFile(event.target.files?.[0] || null)
                   }
                   required={!editingId}
                 />
-
                 <small>
-                  PDF, JPG, PNG, DOCX, XLSX or PPTX |
-                  maximum 10 MB
+                  PDF, JPG, PNG, DOCX, XLSX or PPTX | maximum 10 MB
                 </small>
 
                 {file && (
@@ -439,56 +405,38 @@ export default function Routines() {
           </div>
 
           {loading ? (
-            <p className="routine-empty">
-              Loading routines...
-            </p>
+            <p className="routine-empty">Loading routines...</p>
           ) : routines.length === 0 ? (
             <div className="routine-empty">
               <FileText size={30} />
               <p>
-                No routine has been published for your
-                registered department yet.
+                No routine has been published for your registered department yet.
               </p>
             </div>
           ) : (
             <div className="routine-grid">
               {routines.map((item) => (
-                <article
-                  className="routine-card"
-                  key={item._id}
-                >
+                <article className="routine-card" key={item._id}>
                   <div className="routine-card-top">
                     <div className="routine-file-icon">
                       <FileText size={22} />
                     </div>
-
-                    <span className="routine-published">
-                      Published
-                    </span>
+                    <span className="routine-published">Published</span>
                   </div>
 
                   <h4>{item.title}</h4>
 
                   <p className="routine-description">
-                    {item.description ||
-                      "Department class routine"}
+                    {item.description || "Department class routine"}
                   </p>
 
                   <div className="routine-meta">
-                    <span>
-                      Department: {item.department}
-                    </span>
+                    <span>Department: {item.department}</span>
                     <span>Applies to: All sections</span>
-
-                    {item.term && (
-                      <span>Term: {item.term}</span>
-                    )}
-
+                    {item.term && <span>Term: {item.term}</span>}
                     <span>File: {item.originalName}</span>
                     <span>
-                      Uploaded by{" "}
-                      {item.uploadedBy?.name ||
-                        "Academic Staff"}
+                      Uploaded by {item.uploadedBy?.name || "Academic Staff"}
                     </span>
                   </div>
 
@@ -497,9 +445,7 @@ export default function Routines() {
                       type="button"
                       className="routine-secondary"
                       disabled={busy}
-                      onClick={() =>
-                        accessFile(item, false)
-                      }
+                      onClick={() => viewRoutineInline(item)}
                     >
                       <Eye size={16} />
                       View
@@ -509,9 +455,7 @@ export default function Routines() {
                       type="button"
                       className="routine-primary"
                       disabled={busy}
-                      onClick={() =>
-                        accessFile(item, true)
-                      }
+                      onClick={() => downloadRoutineFile(item)}
                     >
                       <Download size={16} />
                       Download
@@ -522,9 +466,7 @@ export default function Routines() {
                         <button
                           type="button"
                           className="routine-secondary"
-                          onClick={() =>
-                            editRoutine(item)
-                          }
+                          onClick={() => editRoutine(item)}
                         >
                           <Pencil size={15} />
                           Edit
@@ -534,9 +476,7 @@ export default function Routines() {
                           type="button"
                           className="routine-danger"
                           disabled={busy}
-                          onClick={() =>
-                            deleteRoutine(item)
-                          }
+                          onClick={() => deleteRoutine(item)}
                         >
                           <Trash2 size={15} />
                           Delete
@@ -549,6 +489,57 @@ export default function Routines() {
             </div>
           )}
         </section>
+
+        {/* In-Page Routine Preview Modal (No download required!) */}
+        {viewer && (
+          <div className="routine-modal-backdrop" onClick={closeViewer}>
+            <div
+              className="routine-modal-box"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="routine-modal-head">
+                <div>
+                  <strong>{viewer.title}</strong>
+                  <small>
+                    {viewer.department}
+                    {viewer.term ? ` | ${viewer.term}` : ""} | {viewer.originalName}
+                  </small>
+                </div>
+
+                <button
+                  type="button"
+                  className="routine-danger"
+                  onClick={closeViewer}
+                >
+                  <X size={16} /> Close Preview
+                </button>
+              </div>
+
+              <div className="routine-modal-body">
+                {viewer.isImage ? (
+                  <img
+                    src={viewer.url}
+                    alt={viewer.title}
+                    className="routine-preview-img"
+                  />
+                ) : viewer.isPdf ? (
+                  <iframe
+                    src={viewer.url}
+                    title={viewer.title}
+                    className="routine-preview-frame"
+                  />
+                ) : (
+                  <div className="routine-empty">
+                    <p>
+                      This Office document ({viewer.originalName}) is ready.
+                      Click Download on the card if your browser does not preview Office files directly.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

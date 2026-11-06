@@ -1589,3 +1589,63 @@ html body .auth-page .auth-right::before { display: none; }
   html body .auth-page .wave-gloss { display: none; }
   html body .auth-page .auth-right { padding-left: 24px !important; }
 }
+
+/* ===== Mobile Hamburger Drawer (Desktop untouched) ===== */
+.mobile-hamburger-btn {
+  display: none !important;
+}
+
+.mobile-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 850px) {
+  html body button.mobile-hamburger-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 1100;
+    width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 12px !important;
+    background: linear-gradient(135deg, #071d2b, #0f766e) !important;
+    color: #ffffff !important;
+    border: none !important;
+    box-shadow: 0 8px 22px rgba(7, 29, 43, 0.28) !important;
+  }
+
+  .topbar {
+    padding-left: 56px;
+  }
+
+  .sidebar-drawer-holder .sidebar {
+    display: flex !important;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 275px !important;
+    z-index: 1050;
+    transform: translateX(-105%);
+    transition: transform 0.28s ease;
+    overflow-y: auto;
+  }
+
+  .app-layout.mobile-nav-open .sidebar-drawer-holder .sidebar {
+    transform: translateX(0);
+  }
+
+  .app-layout.mobile-nav-open .mobile-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+    background: rgba(7, 29, 43, 0.55);
+    backdrop-filter: blur(2px);
+  }
+}
