@@ -1,3 +1,6 @@
+const path = require("path");
+const fs = require("fs");
+const { autoSeedIfEmpty } = require("./services/autoSeedIfEmpty");
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
@@ -8,6 +11,7 @@ const { startTheoryAutoSubmit } = require("./services/theoryAutoSubmit");
 dotenv.config();
 connectDB().then(() => {
   startQuizAutoSubmit();
+  autoSeedIfEmpty();
   startTheoryAutoSubmit();
 }).catch((error) => {
   console.error("Database/quiz worker startup failed:", error);
@@ -19,9 +23,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("BUP LearnHub API is running successfully");
-});
+app.get("/api/health", (_req, res) => { res.send("BUP LearnHub API is running successfully"); });
 
 app.use("/api/auth/register", async (req, res, next) => {
   if (req.method !== "POST") return next();
@@ -77,6 +79,20 @@ app.use("/api/notifications", require("./routes/notificationRoutes"));
 
 app.use("/api/routines", require("./routes/routineRoutes"));
 
+
+
+const frontendDistPath = path.join(__dirname, "..", "frontend", "dist");
+if (fs.existsSync(path.join(frontendDistPath, "index.html"))) {
+  app.use(express.static(frontendDistPath));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    return res.sendFile(path.join(frontendDistPath, "index.html"));
+  });
+} else {
+  app.get("/", (_req, res) => {
+    res.send("BUP LearnHub API is running successfully");
+  });
+}
 
 const PORT = process.env.PORT || 5000;
 
