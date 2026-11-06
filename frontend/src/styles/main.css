@@ -1649,3 +1649,54 @@ html body .auth-page .auth-right::before { display: none; }
     backdrop-filter: blur(2px);
   }
 }
+/* ===== Scrollable Sidebar Fix ===== */
+html body .sidebar {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
+html body .sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+html body .sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html body .sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 99px;
+}
+
+html body .sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.42);
+}
+
+html body .sidebar .brand-row {
+  margin-bottom: 22px !important;
+  flex-shrink: 0;
+}
+
+html body .sidebar nav {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 14px;
+  gap: 5px !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+html body .sidebar nav a {
+  padding: 11px 14px !important;
+  flex-shrink: 0;
+}
+
+html body .sidebar .logout {
+  flex-shrink: 0;
+  margin-top: auto !important;
+}
