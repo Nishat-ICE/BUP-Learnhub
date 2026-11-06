@@ -458,4 +458,47 @@ router.get(
   }
 );
 
+
+// Inline HTML preview for .docx routine files (so View works without downloading)
+router.get(
+  "/:id/preview",
+  authorize("staff", "student", "faculty"),
+  async (req, res) => {
+    try {
+      const routine = await findRoutine(req, res);
+      if (!routine) return;
+
+      if (!canViewRoutine(routine, req.user)) {
+        return res.status(403).json({
+          message: "This routine is not available for your department."
+        });
+      }
+
+      if (!safeStoredName(routine.storedName)) {
+        return res.status(404).json({ message: "Routine file is unavailable." });
+      }
+
+      const filePath = path.join(uploadDir, routine.storedName);
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: "Routine file is unavailable on server." });
+      }
+
+      const ext = path.extname(routine.originalName || routine.storedName).toLowerCase();
+
+      if (ext === ".docx") {
+        const mammoth = require("mammoth");
+        const result = await mammoth.convertToHtml({ path: filePath });
+        return res.json({
+          kind: "html",
+          html: result.value || "<p>Empty document.</p>"
+        });
+      }
+
+      return res.json({ kind: "binary" });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }
+);
+
 module.exports = router;

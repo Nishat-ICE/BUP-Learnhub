@@ -311,3 +311,32 @@ html body .routine-page button.routine-danger {
   border-radius: 10px;
   background: #ffffff;
 }
+.routine-docx-preview {
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  color: #111827;
+  border-radius: 12px;
+  padding: 28px 34px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.routine-docx-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+}
+
+.routine-docx-preview th,
+.routine-docx-preview td {
+  border: 1px solid #cbd5e1;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.routine-docx-preview th {
+  background: #f1f5f9;
+  font-weight: 800;
+}

@@ -185,20 +185,45 @@ export default function Routines() {
     setMessage(null);
 
     try {
+      const name = (item.originalName || "").toLowerCase();
+      const mime = item.mimeType || "";
+
+      // If it is a .docx Word file, fetch converted HTML from backend
+      if (name.endsWith(".docx") || mime.includes("wordprocessingml")) {
+        const previewRes = await api.get(`/routines/${item._id}/preview`);
+        if (previewRes.data?.kind === "html") {
+          if (viewer?.url) URL.revokeObjectURL(viewer.url);
+          setViewer({
+            title: item.title,
+            originalName: item.originalName,
+            department: item.department,
+            term: item.term,
+            url: null,
+            htmlContent: previewRes.data.html,
+            isImage: false,
+            isPdf: false,
+            isHtml: true
+          });
+          return;
+        }
+      }
+
       const response = await api.get(`/routines/${item._id}/file`, {
         responseType: "blob"
       });
 
-      const mime =
+      const blobMime =
         item.mimeType ||
         response.data.type ||
         "application/octet-stream";
 
-      const blob = new Blob([response.data], { type: mime });
+      const blob = new Blob([response.data], { type: blobMime });
       const objectUrl = URL.createObjectURL(blob);
 
-      const isImage = /^image\//i.test(mime) || /\.(png|jpg|jpeg)$/i.test(item.originalName || "");
-      const isPdf = mime === "application/pdf" || /\.pdf$/i.test(item.originalName || "");
+      const isImage =
+        /^image\//i.test(blobMime) || /\.(png|jpg|jpeg)$/i.test(name);
+      const isPdf =
+        blobMime === "application/pdf" || /\.pdf$/i.test(name);
 
       if (viewer?.url) {
         URL.revokeObjectURL(viewer.url);
@@ -210,8 +235,10 @@ export default function Routines() {
         department: item.department,
         term: item.term,
         url: objectUrl,
+        htmlContent: "",
         isImage,
-        isPdf
+        isPdf,
+        isHtml: false
       });
     } catch (error) {
       setMessage({
@@ -516,7 +543,12 @@ export default function Routines() {
               </div>
 
               <div className="routine-modal-body">
-                {viewer.isImage ? (
+                {viewer.isHtml ? (
+                  <div
+                    className="routine-docx-preview"
+                    dangerouslySetInnerHTML={{ __html: viewer.htmlContent }}
+                  />
+                ) : viewer.isImage ? (
                   <img
                     src={viewer.url}
                     alt={viewer.title}
@@ -529,12 +561,11 @@ export default function Routines() {
                     className="routine-preview-frame"
                   />
                 ) : (
-                  <div className="routine-empty">
-                    <p>
-                      This Office document ({viewer.originalName}) is ready.
-                      Click Download on the card if your browser does not preview Office files directly.
-                    </p>
-                  </div>
+                  <iframe
+                    src={viewer.url}
+                    title={viewer.title}
+                    className="routine-preview-frame"
+                  />
                 )}
               </div>
             </div>
