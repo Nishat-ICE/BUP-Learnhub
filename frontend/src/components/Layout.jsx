@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Menu, X } from "lucide-react";
 import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
+import "../styles/mobile-nav.css";
 
 const Layout = ({ title, children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

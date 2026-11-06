@@ -1591,9 +1591,7 @@ html body .auth-page .auth-right::before { display: none; }
 }
 
 /* ===== Mobile Hamburger Drawer (Desktop untouched) ===== */
-.mobile-hamburger-btn {
-  display: none !important;
-}
+
 
 .mobile-sidebar-backdrop {
   display: none;
