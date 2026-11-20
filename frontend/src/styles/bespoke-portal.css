@@ -8,15 +8,7 @@
 
 .app-layout {
   font-family: "Plus Jakarta Sans", "Inter", sans-serif;
-  background-color: #eef3f7;
-  background-image:
-    radial-gradient(at 0% 0%, rgba(15, 118, 110, 0.12) 0px, transparent 45%),
-    radial-gradient(at 100% 8%, rgba(214, 168, 79, 0.14) 0px, transparent 40%),
-    radial-gradient(at 60% 100%, rgba(7, 29, 43, 0.07) 0px, transparent 50%),
-    linear-gradient(#e2e8f0 1px, transparent 1px),
-    linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 38px 38px, 38px 38px;
-  background-position: 0 0, 0 0, 0 0, -1px -1px, -1px -1px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 55%, #eef6f5 100%) !important;
   min-height: 100vh;
 }
 
