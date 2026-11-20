@@ -12,13 +12,37 @@ const slotEntrySchema = new mongoose.Schema(
   { _id: false }
 );
 
+const batchColSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    time: { type: String, default: "" }
+  },
+  { _id: false }
+);
+
+const examDateRowSchema = new mongoose.Schema(
+  {
+    dateStr: { type: String, required: true },
+    dayName: { type: String, required: true }
+  },
+  { _id: false }
+);
+
 const routineSchema = new mongoose.Schema(
   {
     title: {
       type: String,
       required: true,
       trim: true,
-      maxlength: 120
+      maxlength: 140
+    },
+    facultyHeader: {
+      type: String,
+      default: "FACULTY OF SCIENCE AND TECHNOLOGY (FST)"
+    },
+    programHeader: {
+      type: String,
+      default: "PROGRAM: BICE & MICE"
     },
     description: {
       type: String,
@@ -50,7 +74,7 @@ const routineSchema = new mongoose.Schema(
     },
     kind: {
       type: String,
-      enum: ["file", "generated"],
+      enum: ["file", "generated", "exam"],
       default: "file"
     },
     slots: {
@@ -59,6 +83,14 @@ const routineSchema = new mongoose.Schema(
     },
     days: {
       type: [String],
+      default: []
+    },
+    batches: {
+      type: [batchColSchema],
+      default: []
+    },
+    examDates: {
+      type: [examDateRowSchema],
       default: []
     },
     entries: {
@@ -71,15 +103,15 @@ const routineSchema = new mongoose.Schema(
     },
     originalName: {
       type: String,
-      default: ""
+      required: true
     },
     mimeType: {
       type: String,
-      default: ""
+      required: true
     },
     size: {
       type: Number,
-      default: 0
+      required: true
     },
     isPublished: {
       type: Boolean,

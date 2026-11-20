@@ -6,6 +6,7 @@ import {
   Download,
   Eye,
   FileText,
+  GraduationCap,
   Pencil,
   Printer,
   Sparkles,
@@ -17,9 +18,15 @@ import {
 import "../styles/routines.css";
 
 const newForm = () => ({
-  title: "",
+  title: "SEMESTER FINAL EXAMINATION ROUTINE (JULY- DECEMBER 2026)",
+  facultyHeader: "FACULTY OF SCIENCE AND TECHNOLOGY (FST)",
+  programHeader: "PROGRAM: BICE & MICE",
   description: "",
-  term: "Fall 2026",
+  term: "July - December 2026",
+  startDate: "2026-11-29",
+  workingDays: 8,
+  batches:
+    "BICE 2023 (1330-1630), BICE 2024 (1330-1630), BICE 2025 (0900-1200), BICE 2026 (0900-1200), MICE 2026 (1330-1630)",
   rooms: "Room 401, Room 402, ICT Lab 1",
   sessionsPerCourse: 2
 });
@@ -37,6 +44,109 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
+function fullDepartmentTitle(dept) {
+  const raw = String(dept || "ICT").trim();
+  if (raw.toUpperCase() === "ICT") {
+    return "DEPARTMENT OF INFORMATION & COMMUNICATION TECHNOLOGY (ICT)";
+  }
+  if (raw.toUpperCase() === "CSE") {
+    return "DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING (CSE)";
+  }
+  if (raw.toUpperCase() === "ES") {
+    return "DEPARTMENT OF ENVIRONMENTAL SCIENCE (ES)";
+  }
+  return `DEPARTMENT OF ${raw.toUpperCase()}`;
+}
+
+// ============================================================
+// BUP OFFICIAL EXAM ROUTINE TABLE (Matches uploaded photo 100%)
+// ============================================================
+function BupExamRoutineSheet({
+  facultyHeader,
+  department,
+  programHeader,
+  title,
+  batches = [],
+  examDates = [],
+  entries = [],
+  editable = false,
+  onChangeExamCell
+}) {
+  const getCellText = (dateStr, batchName) => {
+    const found = entries.find(
+      (e) => e.day === dateStr && e.slot === batchName
+    );
+    if (!found) return "";
+    return `${found.courseCode ? found.courseCode + " " : ""}${
+      found.courseTitle || ""
+    }`.trim();
+  };
+
+  return (
+    <div className="bup-exam-sheet">
+      <div className="bup-exam-headers">
+        <div className="bup-exam-line">{facultyHeader}</div>
+        <div className="bup-exam-line">{fullDepartmentTitle(department)}</div>
+        <div className="bup-exam-line">{programHeader}</div>
+        <div className="bup-exam-line">{title}</div>
+      </div>
+
+      <div className="rt-grid-wrap">
+        <table className="bup-exam-table">
+          <thead>
+            <tr>
+              <th className="bup-diag-cell">
+                <span className="diag-top-right">Batch</span>
+                <span className="diag-bottom-left">Date</span>
+              </th>
+              {batches.map((b) => (
+                <th key={b.name} className="bup-batch-th">
+                  <div>{b.name}</div>
+                  <div>{b.time}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {examDates.map((dRow) => (
+              <tr key={dRow.dateStr}>
+                <td className="bup-date-td">
+                  <div>{dRow.dateStr}</div>
+                  <div>{dRow.dayName}</div>
+                </td>
+                {batches.map((b) => {
+                  const val = getCellText(dRow.dateStr, b.name);
+                  return (
+                    <td key={b.name} className="bup-exam-td">
+                      {editable ? (
+                        <textarea
+                          rows="3"
+                          className="bup-exam-cell-input"
+                          value={val}
+                          placeholder="Empty (Study Gap)"
+                          onChange={(e) =>
+                            onChangeExamCell &&
+                            onChangeExamCell(dRow.dateStr, b.name, e.target.value)
+                          }
+                        />
+                      ) : (
+                        <div className="bup-exam-cell-text">{val}</div>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// WEEKLY CLASS TIMETABLE GRID
+// ============================================================
 function RoutineTimetableGrid({
   days = [],
   slots = [],
@@ -69,7 +179,7 @@ function RoutineTimetableGrid({
                 return (
                   <td key={slot} className="rt-slot-cell">
                     {cellItems.length === 0 ? (
-                      <span className="rt-free-slot">—</span>
+                      <span className="rt-free-slot">-</span>
                     ) : (
                       cellItems.map((item, idx) => (
                         <div className="rt-class-pill" key={idx}>
@@ -109,11 +219,12 @@ export default function Routines() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const isStaff = user.role === "staff";
   const department =
-    typeof user.department === "string" ? user.department.trim() : "";
+    typeof user.department === "string" ? user.department.trim() : "ICT";
 
-  const [mode, setMode] = useState("auto"); // "auto" | "file"
+  const [mode, setMode] = useState("exam"); // "exam" | "auto" | "file"
   const [routines, setRoutines] = useState([]);
   const [form, setForm] = useState(newForm);
+  const [examGrid, setExamGrid] = useState(null);
   const [generatedGrid, setGeneratedGrid] = useState(null);
 
   const [file, setFile] = useState(null);
@@ -150,6 +261,7 @@ export default function Routines() {
   function resetForm() {
     setEditingId(null);
     setForm(newForm());
+    setExamGrid(null);
     setGeneratedGrid(null);
     setFile(null);
     setFileKey((current) => current + 1);
@@ -158,14 +270,24 @@ export default function Routines() {
   function editRoutine(item) {
     setEditingId(item._id);
     setForm({
+      ...newForm(),
       title: item.title || "",
+      facultyHeader:
+        item.facultyHeader || "FACULTY OF SCIENCE AND TECHNOLOGY (FST)",
+      programHeader: item.programHeader || "PROGRAM: BICE & MICE",
       description: item.description || "",
-      term: item.term || "Fall 2026",
-      rooms: "Room 401, Room 402, ICT Lab 1",
-      sessionsPerCourse: 2
+      term: item.term || "July - December 2026"
     });
 
-    if (item.kind === "generated" && item.entries?.length) {
+    if (item.kind === "exam" && item.batches?.length) {
+      setMode("exam");
+      setExamGrid({
+        batches: item.batches,
+        examDates: item.examDates,
+        entries: item.entries || []
+      });
+      setGeneratedGrid(null);
+    } else if (item.kind === "generated" && item.entries?.length) {
       setMode("auto");
       setGeneratedGrid({
         days: item.days?.length
@@ -176,8 +298,10 @@ export default function Routines() {
           : ["08:30 - 09:50", "10:00 - 11:20", "11:30 - 12:50", "14:00 - 15:20"],
         entries: item.entries
       });
+      setExamGrid(null);
     } else {
       setMode("file");
+      setExamGrid(null);
       setGeneratedGrid(null);
     }
 
@@ -187,7 +311,116 @@ export default function Routines() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function handleAutoGenerate() {
+  // ---- 1. Auto-Generate BUP Exam Routine ----
+  async function handleAutoGenerateExam() {
+    setBusy(true);
+    setMessage(null);
+
+    try {
+      const res = await api.post("/routines/auto-generate-exam", {
+        startDate: form.startDate,
+        workingDays: Number(form.workingDays) || 8,
+        batches: form.batches
+      });
+
+      setExamGrid({
+        batches: res.data.batches,
+        examDates: res.data.examDates,
+        entries: res.data.entries
+      });
+
+      setMessage({
+        type: "success",
+        text: "BUP Official Semester Examination Routine generated with automatic study gaps (Fridays & Saturdays skipped)! You can edit any cell before publishing."
+      });
+    } catch (error) {
+      setMessage({ type: "error", text: errorMessage(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function updateExamCell(dateStr, batchName, rawText) {
+    if (!examGrid) return;
+    const text = rawText;
+    const trimmed = text.trim();
+
+    const firstSpace = trimmed.indexOf(" ");
+    const courseCode =
+      firstSpace > 0 && /^[A-Z]+-\d+/i.test(trimmed.slice(0, firstSpace))
+        ? trimmed.slice(0, firstSpace)
+        : "";
+    const courseTitle = courseCode
+      ? trimmed.slice(firstSpace + 1)
+      : trimmed;
+
+    const others = examGrid.entries.filter(
+      (e) => !(e.day === dateStr && e.slot === batchName)
+    );
+
+    if (trimmed) {
+      others.push({
+        day: dateStr,
+        slot: batchName,
+        courseCode,
+        courseTitle,
+        room: ""
+      });
+    }
+
+    setExamGrid({ ...examGrid, entries: others });
+  }
+
+  async function saveExamRoutine(event) {
+    event.preventDefault();
+    setMessage(null);
+
+    if (!examGrid || !examGrid.batches?.length) {
+      setMessage({
+        type: "error",
+        text: "Click 'Auto-Generate BUP Exam Routine' first to build the schedule."
+      });
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const payload = {
+        title: form.title.trim(),
+        facultyHeader: form.facultyHeader.trim(),
+        programHeader: form.programHeader.trim(),
+        description: form.description.trim(),
+        term: form.term.trim(),
+        batches: examGrid.batches,
+        examDates: examGrid.examDates,
+        entries: examGrid.entries
+      };
+
+      if (editingId) {
+        await api.put(`/routines/${editingId}/exam`, payload);
+      } else {
+        await api.post("/routines/exam", payload);
+      }
+
+      const wasEditing = Boolean(editingId);
+      resetForm();
+      await loadRoutines();
+
+      setMessage({
+        type: "success",
+        text: wasEditing
+          ? "Examination routine updated!"
+          : "Official Examination Routine published for your department!"
+      });
+    } catch (error) {
+      setMessage({ type: "error", text: errorMessage(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ---- 2. Auto-Generate Weekly Class Routine ----
+  async function handleAutoGenerateClass() {
     setBusy(true);
     setMessage(null);
 
@@ -203,30 +436,18 @@ export default function Routines() {
         entries: res.data.entries
       });
 
-      if (!form.title.trim()) {
-        setForm((prev) => ({
-          ...prev,
-          title: `${res.data.department} Department Class Routine (${
-            prev.term || "Current Semester"
-          })`
-        }));
-      }
-
       setMessage({
         type: "success",
-        text: `Smart timetable generated automatically for ${res.data.courseCount} courses in ${res.data.department} without any faculty or room clash!`
+        text: `Smart class timetable generated for ${res.data.courseCount} courses!`
       });
     } catch (error) {
-      setMessage({
-        type: "error",
-        text: errorMessage(error)
-      });
+      setMessage({ type: "error", text: errorMessage(error) });
     } finally {
       setBusy(false);
     }
   }
 
-  function updateCellField(day, slot, matchIdx, field, value) {
+  function updateClassCellField(day, slot, matchIdx, field, value) {
     if (!generatedGrid) return;
     let seen = -1;
     const nextEntries = generatedGrid.entries.map((entry) => {
@@ -241,14 +462,14 @@ export default function Routines() {
     setGeneratedGrid({ ...generatedGrid, entries: nextEntries });
   }
 
-  async function saveGeneratedRoutine(event) {
+  async function saveGeneratedClassRoutine(event) {
     event.preventDefault();
     setMessage(null);
 
     if (!generatedGrid || !generatedGrid.entries?.length) {
       setMessage({
         type: "error",
-        text: "Click 'Auto-Generate Timetable Grid' first to build the schedule."
+        text: "Click 'Auto-Generate Class Timetable' first."
       });
       return;
     }
@@ -270,35 +491,26 @@ export default function Routines() {
         await api.post("/routines/generated", payload);
       }
 
-      const wasEditing = Boolean(editingId);
       resetForm();
       await loadRoutines();
-
       setMessage({
         type: "success",
-        text: wasEditing
-          ? "Auto-generated routine updated!"
-          : "Auto-generated routine published for your department!"
+        text: "Class routine published for your department!"
       });
     } catch (error) {
-      setMessage({
-        type: "error",
-        text: errorMessage(error)
-      });
+      setMessage({ type: "error", text: errorMessage(error) });
     } finally {
       setBusy(false);
     }
   }
 
+  // ---- 3. File Upload Routine ----
   async function saveFileRoutine(event) {
     event.preventDefault();
     setMessage(null);
 
     if (!editingId && !file) {
-      setMessage({
-        type: "error",
-        text: "Choose a routine image or file."
-      });
+      setMessage({ type: "error", text: "Choose a routine image or file." });
       return;
     }
 
@@ -316,21 +528,11 @@ export default function Routines() {
         await api.post("/routines", body);
       }
 
-      const wasEditing = Boolean(editingId);
       resetForm();
       await loadRoutines();
-
-      setMessage({
-        type: "success",
-        text: wasEditing
-          ? "Routine file updated."
-          : "Routine file uploaded and published."
-      });
+      setMessage({ type: "success", text: "Routine file published." });
     } catch (error) {
-      setMessage({
-        type: "error",
-        text: errorMessage(error)
-      });
+      setMessage({ type: "error", text: errorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -339,8 +541,6 @@ export default function Routines() {
   async function deleteRoutine(item) {
     if (!window.confirm(`Delete "${item.title}"?`)) return;
     setBusy(true);
-    setMessage(null);
-
     try {
       await api.delete(`/routines/${item._id}`);
       if (editingId === item._id) resetForm();
@@ -353,56 +553,47 @@ export default function Routines() {
     }
   }
 
-  function printOrDownloadGeneratedPdf(item) {
+  // ---- Official BUP Exam Routine Print / PDF ----
+  function printExamRoutinePdf(item) {
     const win = window.open("", "_blank");
     if (!win) {
-      alert("Please allow popups to download/print the PDF routine.");
+      alert("Please allow popups to print/download the PDF routine.");
       return;
     }
 
-    const days = item.days?.length
-      ? item.days
-      : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"];
-    const slots = item.slots?.length
-      ? item.slots
-      : ["08:30 - 09:50", "10:00 - 11:20", "11:30 - 12:50", "14:00 - 15:20"];
+    const batches = item.batches || [];
+    const examDates = item.examDates || [];
     const entries = item.entries || [];
 
-    const slotHeaders = slots.map((s) => `<th>${escapeHtml(s)}</th>`).join("");
-    const bodyRows = days
-      .map((day) => {
-        const cells = slots
-          .map((slot) => {
-            const matches = entries.filter(
-              (e) => e.day === day && e.slot === slot
+    const batchHeaders = batches
+      .map(
+        (b) =>
+          `<th><div>${escapeHtml(b.name)}</div><div>${escapeHtml(b.time)}</div></th>`
+      )
+      .join("");
+
+    const rowsHtml = examDates
+      .map((d) => {
+        const cells = batches
+          .map((b) => {
+            const found = entries.find(
+              (e) => e.day === d.dateStr && e.slot === b.name
             );
-            if (!matches.length) {
-              return `<td style="text-align:center;color:#94a3b8;">—</td>`;
-            }
-            return `<td>${matches
-              .map(
-                (m) => `
-                <div style="padding:6px;border-radius:6px;background:#f0fdfa;border:1px solid #99f6e4;margin-bottom:4px;">
-                  <div style="display:flex;justify-content:space-between;font-weight:800;color:#0f766e;">
-                    <span>${escapeHtml(m.courseCode)}</span>
-                    <span style="background:#0b3b4a;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">${escapeHtml(
-                      m.room
-                    )}</span>
-                  </div>
-                  <div style="font-weight:700;color:#0f172a;margin-top:3px;">${escapeHtml(
-                    m.courseTitle
-                  )}</div>
-                  <div style="font-size:11px;color:#475569;">${escapeHtml(
-                    m.facultyName
-                  )}</div>
-                </div>`
-              )
-              .join("")}</td>`;
+            const txt = found
+              ? `${found.courseCode ? found.courseCode + " " : ""}${
+                  found.courseTitle || ""
+                }`.trim()
+              : "";
+            return `<td>${escapeHtml(txt)}</td>`;
           })
           .join("");
-        return `<tr><td style="font-weight:800;background:#f8fafc;">${escapeHtml(
-          day
-        )}</td>${cells}</tr>`;
+
+        return `<tr>
+          <td class="date-cell"><div>${escapeHtml(d.dateStr)}</div><div>${escapeHtml(
+          d.dayName
+        )}</div></td>
+          ${cells}
+        </tr>`;
       })
       .join("");
 
@@ -414,32 +605,46 @@ export default function Routines() {
         <title>${escapeHtml(item.title)}</title>
         <style>
           @page { size: landscape; margin: 12mm; }
-          body { font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; padding: 16px; }
-          .head { border-bottom: 2px solid #0b3b4a; padding-bottom: 10px; margin-bottom: 16px; display:flex; justify-content:space-between; }
-          h1 { margin: 0 0 4px; font-size: 20px; color: #0b3b4a; }
-          p { margin: 2px 0; font-size: 12.5px; color: #475569; }
-          table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th, td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: top; }
-          th { background: #0b3b4a; color: #ffffff; font-weight: 800; }
+          body { font-family: "Times New Roman", serif; color: #000; padding: 10px; }
+          .headers { text-align: center; margin-bottom: 16px; }
+          .headers div {
+            font-size: 15px;
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+          }
+          table { width: 100%; border-collapse: collapse; font-size: 13px; }
+          th, td { border: 1px solid #000; padding: 7px 8px; vertical-align: top; text-align: left; }
+          thead th { background: #d1d5db; text-align: center; font-weight: bold; }
+          .date-cell { background: #d1d5db; width: 115px; font-weight: normal; }
+          .diag {
+            position: relative;
+            width: 115px;
+            height: 46px;
+            background: linear-gradient(to top right, #d1d5db 49%, #000 50%, #d1d5db 51%);
+          }
+          .diag .b { position: absolute; top: 4px; right: 8px; font-weight: bold; }
+          .diag .d { position: absolute; bottom: 4px; left: 8px; font-weight: bold; }
         </style>
       </head>
       <body>
-        <div class="head">
-          <div>
-            <h1>BUP LearnHub — Official Class Routine</h1>
-            <p><strong>${escapeHtml(item.title)}</strong></p>
-            <p>Department: ${escapeHtml(item.department)} ${
-      item.term ? `| Term: ${escapeHtml(item.term)}` : ""
-    }</p>
-          </div>
-          <div style="text-align:right;">
-            <p>Generated: ${escapeHtml(new Date().toLocaleDateString())}</p>
-            <p>Applies to: All Sections</p>
-          </div>
+        <div class="headers">
+          <div>${escapeHtml(
+            item.facultyHeader || "FACULTY OF SCIENCE AND TECHNOLOGY (FST)"
+          )}</div>
+          <div>${escapeHtml(fullDepartmentTitle(item.department))}</div>
+          <div>${escapeHtml(item.programHeader || "PROGRAM: BICE & MICE")}</div>
+          <div>${escapeHtml(item.title)}</div>
         </div>
         <table>
-          <thead><tr><th>Day / Time</th>${slotHeaders}</tr></thead>
-          <tbody>${bodyRows}</tbody>
+          <thead>
+            <tr>
+              <th class="diag"><span class="b">Batch</span><span class="d">Date</span></th>
+              ${batchHeaders}
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
         </table>
         <script>
           window.onload = function() { setTimeout(function() { window.print(); }, 250); };
@@ -453,7 +658,75 @@ export default function Routines() {
     win.document.close();
   }
 
+  function printClassRoutinePdf(item) {
+    const win = window.open("", "_blank");
+    if (!win) return;
+
+    const days = item.days || [];
+    const slots = item.slots || [];
+    const entries = item.entries || [];
+
+    const slotHeaders = slots.map((s) => `<th>${escapeHtml(s)}</th>`).join("");
+    const bodyRows = days
+      .map((day) => {
+        const cells = slots
+          .map((slot) => {
+            const matches = entries.filter(
+              (e) => e.day === day && e.slot === slot
+            );
+            if (!matches.length) return `<td style="text-align:center;">-</td>`;
+            return `<td>${matches
+              .map(
+                (m) =>
+                  `<div><strong>${escapeHtml(m.courseCode)}</strong> (${escapeHtml(
+                    m.room
+                  )})<br/>${escapeHtml(m.courseTitle)}<br/><small>${escapeHtml(
+                    m.facultyName
+                  )}</small></div>`
+              )
+              .join("")}</td>`;
+          })
+          .join("");
+        return `<tr><td><strong>${escapeHtml(day)}</strong></td>${cells}</tr>`;
+      })
+      .join("");
+
+    win.document.open();
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${escapeHtml(item.title)}</title>
+        <style>
+          @page { size: landscape; margin: 12mm; }
+          body { font-family: Arial, sans-serif; padding: 16px; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { border: 1px solid #333; padding: 8px; }
+          th { background: #e2e8f0; }
+        </style>
+      </head>
+      <body>
+        <h2>${escapeHtml(item.title)} (${escapeHtml(item.department)})</h2>
+        <table><thead><tr><th>Day / Time</th>${slotHeaders}</tr></thead><tbody>${bodyRows}</tbody></table>
+        <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 250); };</script>
+      </body>
+      </html>
+    `);
+    win.document.close();
+  }
+
   async function viewRoutineInline(item) {
+    if (item.kind === "exam" && item.batches?.length) {
+      setViewer({
+        title: item.title,
+        department: item.department,
+        term: item.term,
+        isExam: true,
+        rawItem: item
+      });
+      return;
+    }
+
     if (item.kind === "generated" && item.entries?.length) {
       setViewer({
         title: item.title,
@@ -519,24 +792,24 @@ export default function Routines() {
   }
 
   async function downloadRoutineFile(item) {
-    if (item.kind === "generated" && item.entries?.length) {
-      printOrDownloadGeneratedPdf(item);
+    if (item.kind === "exam") {
+      printExamRoutinePdf(item);
+      return;
+    }
+    if (item.kind === "generated") {
+      printClassRoutinePdf(item);
       return;
     }
 
     setBusy(true);
-    setMessage(null);
-
     try {
       const response = await api.get(`/routines/${item._id}/file`, {
         params: { download: 1 },
         responseType: "blob"
       });
-
       const blob = new Blob([response.data], {
         type: item.mimeType || response.data.type || "application/octet-stream"
       });
-
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
@@ -544,7 +817,6 @@ export default function Routines() {
       document.body.appendChild(link);
       link.click();
       link.remove();
-
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
     } catch (error) {
       setMessage({ type: "error", text: errorMessage(error) });
@@ -554,16 +826,18 @@ export default function Routines() {
   }
 
   return (
-    <Layout title="Class Routines">
+    <Layout title="Class & Exam Routines">
       <div className="routine-page">
         <section className="panel routine-hero">
           <div>
-            <span className="routine-eyebrow">SMART ACADEMIC TIMETABLES</span>
-            <h2>Class Routines &amp; Auto-Generator</h2>
+            <span className="routine-eyebrow">
+              BUP OFFICIAL EXAM &amp; CLASS TIMETABLES
+            </span>
+            <h2>Exam &amp; Class Routine Generator</h2>
             <p>
               {isStaff
-                ? "Automatically generate a conflict-free class routine from your department's courses, or upload an existing routine file."
-                : "View or download published class routines for your registered department."}
+                ? "Auto-generate official BUP Semester Final Examination Routines (Date x Batch format), Weekly Class Routines, or upload routine files."
+                : "View or download official Examination Routines and Class Timetables for your department."}
             </p>
           </div>
           <CalendarDays size={32} />
@@ -582,24 +856,29 @@ export default function Routines() {
                 <button
                   type="button"
                   className={
-                    mode === "auto"
-                      ? "routine-primary"
-                      : "routine-secondary"
+                    mode === "exam" ? "routine-primary" : "routine-secondary"
                   }
-                  onClick={() => setMode("auto")}
+                  onClick={() => setMode("exam")}
                 >
-                  <Wand2 size={16} /> Auto-Generate Routine (Smart Timetable)
+                  <GraduationCap size={16} /> Auto Exam Routine (BUP Official Format)
                 </button>
                 <button
                   type="button"
                   className={
-                    mode === "file"
-                      ? "routine-primary"
-                      : "routine-secondary"
+                    mode === "auto" ? "routine-primary" : "routine-secondary"
+                  }
+                  onClick={() => setMode("auto")}
+                >
+                  <Wand2 size={16} /> Auto Class Routine (Weekly)
+                </button>
+                <button
+                  type="button"
+                  className={
+                    mode === "file" ? "routine-primary" : "routine-secondary"
                   }
                   onClick={() => setMode("file")}
                 >
-                  <UploadCloud size={16} /> Upload Routine File (PDF / Image)
+                  <UploadCloud size={16} /> Upload Routine File
                 </button>
               </div>
 
@@ -614,8 +893,126 @@ export default function Routines() {
               )}
             </div>
 
-            {mode === "auto" ? (
-              <form className="routine-form" onSubmit={saveGeneratedRoutine}>
+            {mode === "exam" ? (
+              <form className="routine-form" onSubmit={saveExamRoutine}>
+                <label>
+                  Faculty Header
+                  <input
+                    value={form.facultyHeader}
+                    onChange={(e) =>
+                      setForm({ ...form, facultyHeader: e.target.value })
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  Program Header
+                  <input
+                    value={form.programHeader}
+                    onChange={(e) =>
+                      setForm({ ...form, programHeader: e.target.value })
+                    }
+                    required
+                  />
+                </label>
+
+                <label className="routine-full">
+                  Examination Routine Title
+                  <input
+                    value={form.title}
+                    onChange={(e) =>
+                      setForm({ ...form, title: e.target.value })
+                    }
+                    placeholder="SEMESTER FINAL EXAMINATION ROUTINE (JULY- DECEMBER 2026)"
+                    required
+                  />
+                </label>
+
+                <label>
+                  Exam Start Date (Fridays &amp; Saturdays auto-skipped)
+                  <input
+                    type="date"
+                    value={form.startDate}
+                    onChange={(e) =>
+                      setForm({ ...form, startDate: e.target.value })
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  Number of Exam Working Days (Sun - Thu)
+                  <input
+                    type="number"
+                    min="4"
+                    max="18"
+                    value={form.workingDays}
+                    onChange={(e) =>
+                      setForm({ ...form, workingDays: e.target.value })
+                    }
+                    required
+                  />
+                </label>
+
+                <label className="routine-full">
+                  Batches &amp; Exam Time Slots (comma-separated: Batch Name (Time))
+                  <input
+                    value={form.batches}
+                    onChange={(e) =>
+                      setForm({ ...form, batches: e.target.value })
+                    }
+                    required
+                  />
+                </label>
+
+                <div className="routine-full rt-gen-bar">
+                  <button
+                    type="button"
+                    className="routine-secondary"
+                    disabled={busy}
+                    onClick={handleAutoGenerateExam}
+                  >
+                    <Sparkles size={16} />{" "}
+                    {examGrid
+                      ? "Re-Generate BUP Exam Routine"
+                      : "Auto-Generate BUP Exam Routine"}
+                  </button>
+
+                  {examGrid && (
+                    <button
+                      type="submit"
+                      className="routine-primary"
+                      disabled={busy}
+                    >
+                      <GraduationCap size={16} />{" "}
+                      {busy
+                        ? "Publishing..."
+                        : editingId
+                        ? "Update Exam Routine"
+                        : "Publish Official Exam Routine"}
+                    </button>
+                  )}
+                </div>
+
+                {examGrid && (
+                  <div className="routine-full">
+                    <BupExamRoutineSheet
+                      facultyHeader={form.facultyHeader}
+                      department={department}
+                      programHeader={form.programHeader}
+                      title={form.title}
+                      batches={examGrid.batches}
+                      examDates={examGrid.examDates}
+                      entries={examGrid.entries}
+                      editable
+                      onChangeExamCell={updateExamCell}
+                    />
+                  </div>
+                )}
+              </form>
+            ) : mode === "auto" ? (
+              <form className="routine-form" onSubmit={saveGeneratedClassRoutine}>
                 <label>
                   Routine title
                   <input
@@ -635,7 +1032,6 @@ export default function Routines() {
                     value={form.term}
                     maxLength="80"
                     onChange={(e) => setForm({ ...form, term: e.target.value })}
-                    placeholder="e.g. Fall 2026"
                   />
                 </label>
 
@@ -646,7 +1042,6 @@ export default function Routines() {
                     onChange={(e) =>
                       setForm({ ...form, rooms: e.target.value })
                     }
-                    placeholder="Room 401, Room 402, ICT Lab 1"
                   />
                 </label>
 
@@ -667,29 +1062,14 @@ export default function Routines() {
                   </select>
                 </label>
 
-                <label className="routine-full">
-                  Notes / Description (optional)
-                  <input
-                    value={form.description}
-                    maxLength="700"
-                    onChange={(e) =>
-                      setForm({ ...form, description: e.target.value })
-                    }
-                    placeholder="e.g. Break from 01:00 PM - 02:00 PM"
-                  />
-                </label>
-
                 <div className="routine-full rt-gen-bar">
                   <button
                     type="button"
                     className="routine-secondary"
                     disabled={busy}
-                    onClick={handleAutoGenerate}
+                    onClick={handleAutoGenerateClass}
                   >
-                    <Sparkles size={16} />{" "}
-                    {generatedGrid
-                      ? "Re-Generate Smart Timetable"
-                      : "Auto-Generate Timetable Grid"}
+                    <Sparkles size={16} /> Auto-Generate Class Timetable
                   </button>
 
                   {generatedGrid && (
@@ -698,12 +1078,7 @@ export default function Routines() {
                       className="routine-primary"
                       disabled={busy}
                     >
-                      <Wand2 size={16} />{" "}
-                      {busy
-                        ? "Publishing..."
-                        : editingId
-                        ? "Update Generated Routine"
-                        : "Publish Auto-Generated Routine"}
+                      <Wand2 size={16} /> Publish Class Routine
                     </button>
                   )}
                 </div>
@@ -715,7 +1090,7 @@ export default function Routines() {
                       slots={generatedGrid.slots}
                       entries={generatedGrid.entries}
                       editable
-                      onChangeCell={updateCellField}
+                      onChangeCell={updateClassCellField}
                     />
                   </div>
                 )}
@@ -730,7 +1105,6 @@ export default function Routines() {
                     onChange={(e) =>
                       setForm({ ...form, title: e.target.value })
                     }
-                    placeholder="e.g. ICT Semester 5 Routine"
                     required
                   />
                 </label>
@@ -741,19 +1115,6 @@ export default function Routines() {
                     value={form.term}
                     maxLength="80"
                     onChange={(e) => setForm({ ...form, term: e.target.value })}
-                    placeholder="e.g. Fall 2026"
-                  />
-                </label>
-
-                <label className="routine-full">
-                  Description (optional)
-                  <textarea
-                    rows="2"
-                    maxLength="700"
-                    value={form.description}
-                    onChange={(e) =>
-                      setForm({ ...form, description: e.target.value })
-                    }
                   />
                 </label>
 
@@ -773,8 +1134,7 @@ export default function Routines() {
                   className="routine-primary"
                   disabled={busy}
                 >
-                  <UploadCloud size={17} />{" "}
-                  {busy ? "Saving..." : "Upload and publish"}
+                  <UploadCloud size={17} /> Upload and publish
                 </button>
               </form>
             )}
@@ -784,7 +1144,7 @@ export default function Routines() {
         <section className="panel">
           <div className="routine-heading">
             <div>
-              <h3>Published Routines</h3>
+              <h3>Published Department Routines</h3>
               <span className="routine-count">{routines.length} routines</span>
             </div>
           </div>
@@ -802,30 +1162,38 @@ export default function Routines() {
                 <article className="routine-card" key={item._id}>
                   <div className="routine-card-top">
                     <div className="routine-file-icon">
-                      {item.kind === "generated" ? (
+                      {item.kind === "exam" ? (
+                        <GraduationCap size={22} />
+                      ) : item.kind === "generated" ? (
                         <Wand2 size={22} />
                       ) : (
                         <FileText size={22} />
                       )}
                     </div>
                     <span className="routine-published">
-                      {item.kind === "generated"
-                        ? "Auto-Generated Timetable"
+                      {item.kind === "exam"
+                        ? "BUP Exam Routine"
+                        : item.kind === "generated"
+                        ? "Class Timetable"
                         : "Published File"}
                     </span>
                   </div>
 
                   <h4>{item.title}</h4>
                   <p className="routine-description">
-                    {item.description || "Official department class timetable"}
+                    {item.kind === "exam"
+                      ? `${item.programHeader || "PROGRAM: BICE & MICE"}`
+                      : item.description || "Official department routine"}
                   </p>
 
                   <div className="routine-meta">
                     <span>Department: {item.department}</span>
                     {item.term && <span>Term: {item.term}</span>}
                     <span>
-                      {item.kind === "generated"
-                        ? `Scheduled Classes: ${item.entries?.length || 0} slots (Sun - Thu)`
+                      {item.kind === "exam"
+                        ? `Batches: ${(item.batches || []).map((b) => b.name).join(", ")}`
+                        : item.kind === "generated"
+                        ? `Scheduled Classes: ${item.entries?.length || 0} slots`
                         : `File: ${item.originalName}`}
                     </span>
                   </div>
@@ -846,7 +1214,7 @@ export default function Routines() {
                       disabled={busy}
                       onClick={() => downloadRoutineFile(item)}
                     >
-                      {item.kind === "generated" ? (
+                      {item.kind === "exam" || item.kind === "generated" ? (
                         <>
                           <Printer size={16} /> Download PDF
                         </>
@@ -899,11 +1267,15 @@ export default function Routines() {
                 </div>
 
                 <div style={{ display: "flex", gap: "8px" }}>
-                  {viewer.isGenerated && (
+                  {(viewer.isExam || viewer.isGenerated) && (
                     <button
                       type="button"
                       className="routine-primary"
-                      onClick={() => printOrDownloadGeneratedPdf(viewer.rawItem)}
+                      onClick={() =>
+                        viewer.isExam
+                          ? printExamRoutinePdf(viewer.rawItem)
+                          : printClassRoutinePdf(viewer.rawItem)
+                      }
                     >
                       <Printer size={15} /> Download / Print PDF
                     </button>
@@ -921,12 +1293,22 @@ export default function Routines() {
               <div
                 className="routine-modal-body"
                 style={
-                  viewer.isGenerated
-                    ? { background: "#f8fafc", alignItems: "flex-start" }
+                  viewer.isExam || viewer.isGenerated
+                    ? { background: "#ffffff", alignItems: "flex-start" }
                     : undefined
                 }
               >
-                {viewer.isGenerated ? (
+                {viewer.isExam ? (
+                  <BupExamRoutineSheet
+                    facultyHeader={viewer.rawItem.facultyHeader}
+                    department={viewer.rawItem.department}
+                    programHeader={viewer.rawItem.programHeader}
+                    title={viewer.rawItem.title}
+                    batches={viewer.rawItem.batches}
+                    examDates={viewer.rawItem.examDates}
+                    entries={viewer.rawItem.entries}
+                  />
+                ) : viewer.isGenerated ? (
                   <RoutineTimetableGrid
                     days={viewer.days}
                     slots={viewer.slots}

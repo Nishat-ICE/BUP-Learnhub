@@ -116,12 +116,16 @@ function safeView(item) {
   return {
     _id: item._id,
     title: item.title,
+    facultyHeader: item.facultyHeader || "FACULTY OF SCIENCE AND TECHNOLOGY (FST)",
+    programHeader: item.programHeader || "PROGRAM: BICE & MICE",
     description: item.description || "",
     department: item.department,
     term: item.term || "",
     kind: item.kind || "file",
     slots: item.slots || [],
     days: item.days || [],
+    batches: item.batches || [],
+    examDates: item.examDates || [],
     entries: item.entries || [],
     originalName: item.originalName || "",
     mimeType: item.mimeType || "",
@@ -761,6 +765,295 @@ router.put(
 
       return res.json({
         message: "Auto-generated routine updated successfully.",
+        routine: safeView(routine)
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }
+);
+
+// ============================================================
+// BUP OFFICIAL EXAM ROUTINE AUTO-GENERATOR (Date x Batch Matrix)
+// Skips Fridays & Saturdays and spaces exams with study gaps
+// ============================================================
+const DAY_NAMES_FULL = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday"
+];
+
+function buildExamDates(startDateStr, workingDaysCount = 8) {
+  const start = startDateStr ? new Date(`${startDateStr}T00:00:00`) : new Date("2026-11-29T00:00:00");
+  const cur = Number.isNaN(start.getTime()) ? new Date("2026-11-29T00:00:00") : new Date(start);
+
+  const result = [];
+  let safety = 0;
+  const target = Math.max(4, Math.min(20, Number(workingDaysCount) || 8));
+
+  while (result.length < target && safety < 60) {
+    safety++;
+    const dow = cur.getDay(); // 5 = Friday, 6 = Saturday
+    if (dow !== 5 && dow !== 6) {
+      const dd = String(cur.getDate()).padStart(2, "0");
+      const mm = String(cur.getMonth() + 1).padStart(2, "0");
+      const yyyy = cur.getFullYear();
+      result.push({
+        dateStr: `${dd}-${mm}-${yyyy}`,
+        dayName: DAY_NAMES_FULL[dow]
+      });
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
+
+function parseBatchColumns(rawBatches) {
+  const fallback = [
+    { name: "BICE 2023", time: "1330-1630" },
+    { name: "BICE 2024", time: "1330-1630" },
+    { name: "BICE 2025", time: "0900-1200" },
+    { name: "BICE 2026", time: "0900-1200" },
+    { name: "MICE 2026", time: "1330-1630" }
+  ];
+
+  if (!rawBatches || typeof rawBatches !== "string" || !rawBatches.trim()) {
+    return fallback;
+  }
+
+  const parsed = rawBatches
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const m = part.match(/^(.+?)\s*\((.+?)\)$/);
+      if (m) {
+        return { name: m[1].trim(), time: m[2].trim() };
+      }
+      return { name: part, time: "0900-1200" };
+    });
+
+  return parsed.length > 0 ? parsed : fallback;
+}
+
+const BUP_ICT_EXAM_CATALOG = [
+  [
+    { code: "ICE-4105", title: "Optical Communication" },
+    { code: "ICE-4103", title: "Information, Network and Software Security" },
+    { code: "ICE-4101", title: "Software Testing and Maintenance" }
+  ],
+  [
+    { code: "ICE-3201", title: "Microprocessor and Computer Architecture" },
+    { code: "ICE-3207", title: "Software and Requirement Engineering" },
+    { code: "ICE-3203", title: "Microwave Engineering and Antenna" }
+  ],
+  [
+    { code: "ICE-2205", title: "Signals and Systems" },
+    { code: "ICE-2203", title: "Database Management System" },
+    { code: "ICE-2207", title: "Computer Network" }
+  ],
+  [
+    { code: "MATH-1205", title: "Mathematics-II (Ordinary and Partial Differential Equations)" },
+    { code: "ICE-1207", title: "Discrete Mathematics" },
+    { code: "ICE-1203", title: "Electronic Devices and Circuit" }
+  ],
+  [
+    { code: "MICE-5102", title: "Information and Cyber Security" },
+    { code: "MICE-5103", title: "Big Data Analytics and Design" },
+    { code: "MICE-5101", title: "Advanced Machine Learning" }
+  ]
+];
+
+// Staggered row indices per batch (matches BUP Official Exam Routine photo with study gaps!)
+const STAGGER_PATTERNS = [
+  [1, 4, 6], // Batch 1 (e.g., BICE 2023): Mon, Thu, Mon
+  [0, 3, 7], // Batch 2 (e.g., BICE 2024): Sun, Wed, Tue
+  [1, 4, 6], // Batch 3 (e.g., BICE 2025): Mon, Thu, Mon
+  [0, 3, 5], // Batch 4 (e.g., BICE 2026): Sun, Wed, Sun
+  [0, 4, 7]  // Batch 5 (e.g., MICE 2026): Sun, Thu, Tue
+];
+
+router.post(
+  "/auto-generate-exam",
+  authorize("staff"),
+  async (req, res) => {
+    try {
+      const dept =
+        typeof req.user.department === "string" && req.user.department.trim()
+          ? req.user.department.trim()
+          : "ICT";
+
+      const isICT =
+        dept.toUpperCase() === "ICT" ||
+        dept.toLowerCase().includes("information");
+
+      const deptCourseIds = await getDepartmentCourseIds(dept);
+      const dbCourses = await Course.find({ _id: { $in: deptCourseIds } })
+        .sort({ code: 1 })
+        .lean();
+
+      const batches = parseBatchColumns(req.body?.batches);
+      const examDates = buildExamDates(req.body?.startDate, req.body?.workingDays || 8);
+
+      const entries = [];
+
+      batches.forEach((batch, bIdx) => {
+        // Choose courses for this batch
+        let batchCourses = [];
+        if (isICT && BUP_ICT_EXAM_CATALOG[bIdx]) {
+          batchCourses = [...BUP_ICT_EXAM_CATALOG[bIdx]];
+        } else if (dbCourses.length > 0) {
+          for (let k = 0; k < 3; k++) {
+            const c = dbCourses[(bIdx * 2 + k) % dbCourses.length];
+            if (c) {
+              batchCourses.push({ code: c.code, title: c.title });
+            }
+          }
+        } else {
+          batchCourses = BUP_ICT_EXAM_CATALOG[bIdx % BUP_ICT_EXAM_CATALOG.length];
+        }
+
+        const pattern = STAGGER_PATTERNS[bIdx % STAGGER_PATTERNS.length];
+
+        batchCourses.forEach((courseItem, cIdx) => {
+          const dateRowIdx = pattern[cIdx] ?? (cIdx * 2 + (bIdx % 2));
+          if (dateRowIdx < examDates.length) {
+            const targetDate = examDates[dateRowIdx];
+            entries.push({
+              day: targetDate.dateStr,
+              slot: batch.name,
+              courseCode: courseItem.code,
+              courseTitle: courseItem.title,
+              facultyName: "",
+              room: batch.time
+            });
+          }
+        });
+      });
+
+      return res.json({
+        department: dept,
+        batches,
+        examDates,
+        entries
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }
+);
+
+// POST /api/routines/exam -> Save & publish BUP Official Exam Routine
+router.post(
+  "/exam",
+  authorize("staff"),
+  async (req, res) => {
+    try {
+      const fields = validateMetadata(req.body, req.user.department);
+      const batches = Array.isArray(req.body?.batches) ? req.body.batches : [];
+      const examDates = Array.isArray(req.body?.examDates) ? req.body.examDates : [];
+      const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+
+      if (!batches.length || !examDates.length) {
+        return res.status(400).json({
+          message: "Generate the exam routine matrix before publishing."
+        });
+      }
+
+      const routine = await Routine.create({
+        ...fields,
+        facultyHeader:
+          typeof req.body?.facultyHeader === "string" && req.body.facultyHeader.trim()
+            ? req.body.facultyHeader.trim()
+            : "FACULTY OF SCIENCE AND TECHNOLOGY (FST)",
+        programHeader:
+          typeof req.body?.programHeader === "string" && req.body.programHeader.trim()
+            ? req.body.programHeader.trim()
+            : "PROGRAM: BICE & MICE",
+        kind: "exam",
+        batches,
+        examDates,
+        days: examDates.map((d) => d.dateStr),
+        slots: batches.map((b) => b.name),
+        entries: entries
+          .filter((e) => String(e.courseCode || e.courseTitle || "").trim())
+          .map((e) => ({
+            day: String(e.day || ""),
+            slot: String(e.slot || ""),
+            courseCode: String(e.courseCode || "").trim(),
+            courseTitle: String(e.courseTitle || "").trim(),
+            facultyName: "",
+            room: String(e.room || "").trim()
+          })),
+        storedName: "auto-generated-exam-routine",
+        originalName: `${fields.department}-Exam-Routine.pdf`,
+        mimeType: "application/json",
+        size: Math.max(1, entries.length),
+        isPublished: true,
+        uploadedBy: req.user._id,
+        updatedBy: req.user._id
+      });
+
+      return res.status(201).json({
+        message: "Official Examination Routine published for your department!",
+        routine: safeView(routine)
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }
+);
+
+// PUT /api/routines/:id/exam -> Update existing Exam Routine
+router.put(
+  "/:id/exam",
+  authorize("staff"),
+  async (req, res) => {
+    try {
+      const routine = await findRoutine(req, res);
+      if (!routine) return;
+
+      if (!canManageRoutine(routine, req.user)) {
+        return res.status(403).json({
+          message: "You can edit only routines you created."
+        });
+      }
+
+      const fields = validateMetadata(req.body, req.user.department);
+      const batches = Array.isArray(req.body?.batches) ? req.body.batches : routine.batches;
+      const examDates = Array.isArray(req.body?.examDates) ? req.body.examDates : routine.examDates;
+      const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+
+      Object.assign(routine, fields);
+      routine.kind = "exam";
+      if (typeof req.body?.facultyHeader === "string") {
+        routine.facultyHeader = req.body.facultyHeader.trim();
+      }
+      if (typeof req.body?.programHeader === "string") {
+        routine.programHeader = req.body.programHeader.trim();
+      }
+      routine.batches = batches;
+      routine.examDates = examDates;
+      routine.entries = entries
+        .filter((e) => String(e.courseCode || e.courseTitle || "").trim())
+        .map((e) => ({
+          day: String(e.day || ""),
+          slot: String(e.slot || ""),
+          courseCode: String(e.courseCode || "").trim(),
+          courseTitle: String(e.courseTitle || "").trim(),
+          facultyName: "",
+          room: String(e.room || "").trim()
+        }));
+      routine.updatedBy = req.user._id;
+
+      await routine.save();
+
+      return res.json({
+        message: "Examination routine updated successfully.",
         routine: safeView(routine)
       });
     } catch (error) {
