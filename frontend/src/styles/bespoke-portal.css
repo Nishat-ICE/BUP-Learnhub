@@ -9,13 +9,12 @@
 .app-layout {
   position: relative;
   font-family: "Plus Jakarta Sans", "Inter", sans-serif;
-  background-color: #e6f0ef !important;
+  background-color: #f8fbfb !important;
   background-image:
-    radial-gradient(at 18% 12%, rgba(15, 118, 110, 0.22) 0px, transparent 48%),
-    radial-gradient(at 88% 10%, rgba(214, 168, 79, 0.25) 0px, transparent 44%),
-    radial-gradient(at 82% 88%, rgba(14, 116, 144, 0.20) 0px, transparent 48%),
-    radial-gradient(at 12% 85%, rgba(7, 29, 43, 0.14) 0px, transparent 46%),
-    linear-gradient(135deg, #e9f2f1 0%, #eef2f7 50%, #f5efe4 100%) !important;
+    radial-gradient(at 15% 8%, rgba(167, 243, 208, 0.42) 0px, transparent 48%),
+    radial-gradient(at 92% 6%, rgba(253, 230, 138, 0.45) 0px, transparent 44%),
+    radial-gradient(at 85% 92%, rgba(186, 230, 253, 0.38) 0px, transparent 50%),
+    linear-gradient(180deg, #ffffff 0%, #f4fbf9 52%, #fefcf6 100%) !important;
   background-attachment: fixed !important;
   min-height: 100vh;
 }
