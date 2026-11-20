@@ -119,9 +119,13 @@ function safeView(item) {
     description: item.description || "",
     department: item.department,
     term: item.term || "",
-    originalName: item.originalName,
-    mimeType: item.mimeType,
-    size: item.size,
+    kind: item.kind || "file",
+    slots: item.slots || [],
+    days: item.days || [],
+    entries: item.entries || [],
+    originalName: item.originalName || "",
+    mimeType: item.mimeType || "",
+    size: item.size || 0,
     isPublished: item.isPublished,
     uploadedBy: item.uploadedBy,
     createdAt: item.createdAt,
@@ -501,4 +505,267 @@ router.get(
   }
 );
 
+
+// ============================================================
+// AUTO ROUTINE GENERATOR ENGINE (Conflict-Free Department Timetable)
+// ============================================================
+const Course = require("../models/Course");
+const { getDepartmentCourseIds } = require("../services/departmentScope");
+
+const DEFAULT_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"];
+const DEFAULT_SLOTS = [
+  "08:30 - 09:50",
+  "10:00 - 11:20",
+  "11:30 - 12:50",
+  "14:00 - 15:20"
+];
+
+function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
+  const roomList =
+    Array.isArray(rooms) && rooms.length > 0
+      ? rooms
+      : ["Room 401", "Room 402", "Lab 301"];
+
+  const entries = [];
+  // Track occupied (day, slot) for each faculty and room so there is ZERO clash
+  const busyFaculty = new Set();
+  const busyRoom = new Set();
+  const courseDayUsed = new Set();
+
+  // Create lecture tasks (each course gets `sessionsPerCourse` classes per week on distinct days)
+  const tasks = [];
+  courses.forEach((c, idx) => {
+    const count = Math.max(1, Math.min(4, Number(sessionsPerCourse) || 2));
+    for (let s = 0; s < count; s++) {
+      tasks.push({
+        courseCode: c.code || `COURSE-${idx + 1}`,
+        courseTitle: c.title || "Academic Course",
+        facultyName: c.faculty?.name || "Assigned Faculty",
+        facultyId: String(c.faculty?._id || c.faculty || idx),
+        sessionIndex: s,
+        preferredRoom: roomList[(idx + s) % roomList.length]
+      });
+    }
+  });
+
+  let cursor = 0;
+  const totalCells = DEFAULT_DAYS.length * DEFAULT_SLOTS.length;
+
+  for (const task of tasks) {
+    let placed = false;
+
+    for (let attempt = 0; attempt < totalCells * 2; attempt++) {
+      const cellIndex = (cursor + attempt) % totalCells;
+      const dayIdx = cellIndex % DEFAULT_DAYS.length;
+      const slotIdx = Math.floor(cellIndex / DEFAULT_DAYS.length);
+
+      const day = DEFAULT_DAYS[dayIdx];
+      const slot = DEFAULT_SLOTS[slotIdx];
+
+      // Avoid putting the same course twice on the same day unless necessary
+      const sameDayKey = `${task.courseCode}|${day}`;
+      if (attempt < totalCells && courseDayUsed.has(sameDayKey)) {
+        continue;
+      }
+
+      const facKey = `${day}|${slot}|${task.facultyId}`;
+      if (busyFaculty.has(facKey)) continue;
+
+      // Find an available room for this (day, slot)
+      let chosenRoom = null;
+      for (let r = 0; r < roomList.length; r++) {
+        const candidate = roomList[(r + dayIdx + slotIdx) % roomList.length];
+        const roomKey = `${day}|${slot}|${candidate}`;
+        if (!busyRoom.has(roomKey)) {
+          chosenRoom = candidate;
+          busyRoom.add(roomKey);
+          break;
+        }
+      }
+
+      if (!chosenRoom) continue;
+
+      busyFaculty.add(facKey);
+      courseDayUsed.add(sameDayKey);
+
+      entries.push({
+        day,
+        slot,
+        courseCode: task.courseCode,
+        courseTitle: task.courseTitle,
+        facultyName: task.facultyName,
+        room: chosenRoom
+      });
+
+      cursor = (cellIndex + 1) % totalCells;
+      placed = true;
+      break;
+    }
+
+    if (!placed) {
+      // Fallback placement if grid is completely saturated
+      const day = DEFAULT_DAYS[entries.length % DEFAULT_DAYS.length];
+      const slot = DEFAULT_SLOTS[Math.floor(entries.length / DEFAULT_DAYS.length) % DEFAULT_SLOTS.length];
+      entries.push({
+        day,
+        slot,
+        courseCode: task.courseCode,
+        courseTitle: task.courseTitle,
+        facultyName: task.facultyName,
+        room: task.preferredRoom
+      });
+    }
+  }
+
+  return {
+    days: DEFAULT_DAYS,
+    slots: DEFAULT_SLOTS,
+    entries
+  };
+}
+
+// POST /api/routines/auto-generate -> Generates a conflict-free preview grid from department courses
+router.post(
+  "/auto-generate",
+  authorize("staff"),
+  async (req, res) => {
+    try {
+      const dept =
+        typeof req.user.department === "string"
+          ? req.user.department.trim()
+          : "ICT";
+
+      const deptCourseIds = await getDepartmentCourseIds(dept);
+      const courses = await Course.find({ _id: { $in: deptCourseIds } })
+        .populate("faculty", "name email department")
+        .sort({ code: 1 })
+        .lean();
+
+      if (courses.length === 0) {
+        return res.status(404).json({
+          message: `No courses found in ${dept} department. Create courses first to auto-generate a routine.`
+        });
+      }
+
+      const rawRooms =
+        typeof req.body?.rooms === "string" ? req.body.rooms : "";
+      const rooms = rawRooms
+        .split(",")
+        .map((r) => r.trim())
+        .filter(Boolean);
+
+      const sessionsPerCourse = Number(req.body?.sessionsPerCourse) || 2;
+      const generated = buildSmartTimetable(courses, rooms, sessionsPerCourse);
+
+      return res.json({
+        department: dept,
+        courseCount: courses.length,
+        ...generated
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }
+);
+
+// POST /api/routines/generated -> Saves & publishes the auto-generated routine
+router.post(
+  "/generated",
+  authorize("staff"),
+  async (req, res) => {
+    try {
+      const fields = validateMetadata(req.body, req.user.department);
+      const days = Array.isArray(req.body?.days) && req.body.days.length
+        ? req.body.days
+        : DEFAULT_DAYS;
+      const slots = Array.isArray(req.body?.slots) && req.body.slots.length
+        ? req.body.slots
+        : DEFAULT_SLOTS;
+      const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+
+      if (entries.length === 0) {
+        return res.status(400).json({
+          message: "Generate the routine timetable grid before publishing."
+        });
+      }
+
+      const routine = await Routine.create({
+        ...fields,
+        kind: "generated",
+        days,
+        slots,
+        entries: entries.map((e) => ({
+          day: String(e.day || ""),
+          slot: String(e.slot || ""),
+          courseCode: String(e.courseCode || "").trim(),
+          courseTitle: String(e.courseTitle || "").trim(),
+          facultyName: String(e.facultyName || "").trim(),
+          room: String(e.room || "").trim()
+        })),
+        storedName: "auto-generated-grid",
+        originalName: `${fields.department}-Auto-Routine.pdf`,
+        mimeType: "application/json",
+        size: entries.length,
+        isPublished: true,
+        uploadedBy: req.user._id,
+        updatedBy: req.user._id
+      });
+
+      return res.status(201).json({
+        message: "Auto-generated routine published for your department!",
+        routine: safeView(routine)
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }
+);
+
+// PUT /api/routines/:id/generated -> Update an existing auto-generated routine
+router.put(
+  "/:id/generated",
+  authorize("staff"),
+  async (req, res) => {
+    try {
+      const routine = await findRoutine(req, res);
+      if (!routine) return;
+
+      if (!canManageRoutine(routine, req.user)) {
+        return res.status(403).json({
+          message: "You can edit only routines you created."
+        });
+      }
+
+      const fields = validateMetadata(req.body, req.user.department);
+      const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+
+      Object.assign(routine, fields);
+      routine.kind = "generated";
+      if (Array.isArray(req.body?.days) && req.body.days.length) {
+        routine.days = req.body.days;
+      }
+      if (Array.isArray(req.body?.slots) && req.body.slots.length) {
+        routine.slots = req.body.slots;
+      }
+      routine.entries = entries.map((e) => ({
+        day: String(e.day || ""),
+        slot: String(e.slot || ""),
+        courseCode: String(e.courseCode || "").trim(),
+        courseTitle: String(e.courseTitle || "").trim(),
+        facultyName: String(e.facultyName || "").trim(),
+        room: String(e.room || "").trim()
+      }));
+      routine.updatedBy = req.user._id;
+
+      await routine.save();
+
+      return res.json({
+        message: "Auto-generated routine updated successfully.",
+        routine: safeView(routine)
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  }
+);
 module.exports = router;

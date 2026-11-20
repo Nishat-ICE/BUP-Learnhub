@@ -1,5 +1,17 @@
 const mongoose = require("mongoose");
 
+const slotEntrySchema = new mongoose.Schema(
+  {
+    day: { type: String, required: true },
+    slot: { type: String, required: true },
+    courseCode: { type: String, default: "" },
+    courseTitle: { type: String, default: "" },
+    facultyName: { type: String, default: "" },
+    room: { type: String, default: "" }
+  },
+  { _id: false }
+);
+
 const routineSchema = new mongoose.Schema(
   {
     title: {
@@ -22,8 +34,6 @@ const routineSchema = new mongoose.Schema(
       required: true,
       index: true
     },
-    // Kept internally for compatibility with old routines.
-    // New uploads are always available to all sections.
     section: {
       type: String,
       default: "All"
@@ -38,21 +48,38 @@ const routineSchema = new mongoose.Schema(
       default: "",
       maxlength: 80
     },
+    kind: {
+      type: String,
+      enum: ["file", "generated"],
+      default: "file"
+    },
+    slots: {
+      type: [String],
+      default: []
+    },
+    days: {
+      type: [String],
+      default: []
+    },
+    entries: {
+      type: [slotEntrySchema],
+      default: []
+    },
     storedName: {
       type: String,
-      required: true
+      default: ""
     },
     originalName: {
       type: String,
-      required: true
+      default: ""
     },
     mimeType: {
       type: String,
-      required: true
+      default: ""
     },
     size: {
       type: Number,
-      required: true
+      default: 0
     },
     isPublished: {
       type: Boolean,
