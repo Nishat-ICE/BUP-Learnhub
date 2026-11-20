@@ -60,7 +60,7 @@ export default function Sidebar() {
         <strong>{user.name || "Authorized User"}</strong>
         <small>
           Role: {(role || "member").toUpperCase()}
-          {user.section && role === "student" ? ` | Sec ${user.section}` : ""}
+          
         </small>
       </div>
 
