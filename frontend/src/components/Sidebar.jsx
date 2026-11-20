@@ -1,7 +1,3 @@
-import { CalendarDays as RoutineIcon } from "lucide-react";
-import { MessageCircle as DiscussionsIcon } from "lucide-react";
-import { ListChecks as QuizNavIcon } from "lucide-react";
-import { FileText as MaterialsIcon } from "lucide-react";
 import React from "react";
 import { Link, NavLink } from "react-router-dom";
 import {
@@ -14,8 +10,21 @@ import {
   CalendarDays,
   ShieldCheck,
   LogOut,
-  Crown
+  Crown,
+  FileText as MaterialsIcon,
+  ListChecks as QuizNavIcon,
+  MessageCircle as DiscussionsIcon,
+  CalendarDays as RoutineIcon,
+  Sparkles
 } from "lucide-react";
+
+const roleBadgeLabel = {
+  student: "Student Workspace",
+  faculty: "Faculty Suite",
+  staff: "Academic Staff Desk",
+  admin: "System Control",
+  authority: "Executive Oversight"
+};
 
 export default function Sidebar() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -34,12 +43,28 @@ export default function Sidebar() {
         className="brand-row"
         style={{ textDecoration: "none", color: "inherit" }}
       >
-        <div className="logo"><Crown size={24} /></div>
+        <div className="logo">
+          <Crown size={24} />
+        </div>
         <div>
           <h3>BUP LearnHub</h3>
-          <span>{role || "portal"}</span>
+          <span>{roleBadgeLabel[role] || "Academic Portal"}</span>
         </div>
       </Link>
+
+      <div className="sb-identity-card">
+        <div className="sb-id-top">
+          <Sparkles size={14} />
+          <span>{user.department || "BUP Academic"}</span>
+        </div>
+        <strong>{user.name || "Authorized User"}</strong>
+        <small>
+          Role: {(role || "member").toUpperCase()}
+          {user.section && role === "student" ? ` | Sec ${user.section}` : ""}
+        </small>
+      </div>
+
+      <div className="sb-section-label">NAVIGATION MENU</div>
 
       <nav>
         <NavLink to="/" end>
@@ -50,17 +75,20 @@ export default function Sidebar() {
           <LayoutDashboard size={18} /> Dashboard
         </NavLink>
 
-        {role === "staff" && (<NavLink to="/courses"><BookOpen size={18} /> Courses</NavLink>)}
+        {role === "staff" && (
+          <NavLink to="/courses">
+            <BookOpen size={18} /> Courses
+          </NavLink>
+        )}
+
         {["student", "faculty"].includes(role) && (
           <>
             <NavLink to="/courses">
               <BookOpen size={18} /> Courses
             </NavLink>
-        {["student", "faculty"].includes(user.role) && (
-          <NavLink to="/materials">
-            <MaterialsIcon size={18} /> Materials
-          </NavLink>
-        )}
+            <NavLink to="/materials">
+              <MaterialsIcon size={18} /> Materials
+            </NavLink>
             <NavLink to="/assignments">
               <ClipboardCheck size={18} /> Assignments
             </NavLink>
@@ -70,7 +98,7 @@ export default function Sidebar() {
               </NavLink>
             )}
             <NavLink to="/grades">
-              <BarChart3 size={18} /> Grades & Progress
+              <BarChart3 size={18} /> Grades &amp; Progress
             </NavLink>
           </>
         )}
@@ -97,34 +125,39 @@ export default function Sidebar() {
             <BarChart3 size={18} /> Authority Reports
           </NavLink>
         )}
-              {["student", "faculty", "staff", "admin", "authority"].includes(user.role) && (
+
+        {["student", "faculty", "staff", "admin", "authority"].includes(
+          role
+        ) && (
           <NavLink to="/quizzes">
             <QuizNavIcon size={18} />
-            {user.role === "staff"
+            {role === "staff"
               ? "Quiz Participation"
-              : ["admin", "authority"].includes(user.role)
+              : ["admin", "authority"].includes(role)
               ? "Quiz Reports"
               : "Quizzes"}
           </NavLink>
         )}
-        {["student", "faculty"].includes(user.role) && (
+
+        {["student", "faculty"].includes(role) && (
           <NavLink to="/discussions">
-            <DiscussionsIcon size={18} />
-            Discussions
+            <DiscussionsIcon size={18} /> Discussions
           </NavLink>
         )}
+
         <NavLink to="/policies">
           <span aria-hidden="true">#</span> Policies &amp; Guidelines
         </NavLink>
-        {["staff", "student", "faculty"].includes(user.role) && (
+
+        {["staff", "student", "faculty"].includes(role) && (
           <NavLink to="/routines">
             <RoutineIcon size={18} /> Routines
           </NavLink>
         )}
-</nav>
+      </nav>
 
       <button type="button" className="logout" onClick={logout}>
-        <LogOut size={18} /> Logout
+        <LogOut size={18} /> Sign Out
       </button>
     </aside>
   );

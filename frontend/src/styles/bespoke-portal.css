@@ -1,0 +1,456 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
+/* =========================================================
+   BESPOKE ACADEMIC LUXURY POST-LOGIN THEME
+   Replaces generic flat grey/white boxes with a layered
+   floating dock, glass command bar, and 3D Bento cards
+========================================================= */
+
+.app-layout {
+  font-family: "Plus Jakarta Sans", "Inter", sans-serif;
+  background-color: #eef3f7;
+  background-image:
+    radial-gradient(at 0% 0%, rgba(15, 118, 110, 0.12) 0px, transparent 45%),
+    radial-gradient(at 100% 8%, rgba(214, 168, 79, 0.14) 0px, transparent 40%),
+    radial-gradient(at 60% 100%, rgba(7, 29, 43, 0.07) 0px, transparent 50%),
+    linear-gradient(#e2e8f0 1px, transparent 1px),
+    linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 38px 38px, 38px 38px;
+  background-position: 0 0, 0 0, 0 0, -1px -1px, -1px -1px;
+  min-height: 100vh;
+}
+
+/* 1. FLOATING GLASS DOCK SIDEBAR */
+html body .sidebar {
+  top: 16px !important;
+  left: 16px !important;
+  bottom: 16px !important;
+  width: 278px !important;
+  height: calc(100vh - 32px) !important;
+  max-height: calc(100vh - 32px) !important;
+  padding: 22px 18px !important;
+  border-radius: 26px !important;
+  background:
+    radial-gradient(circle at 90% 8%, rgba(214, 168, 79, 0.22), transparent 36%),
+    radial-gradient(circle at 10% 95%, rgba(20, 184, 166, 0.22), transparent 42%),
+    linear-gradient(165deg, #061a26 0%, #092c3a 52%, #0b3b36 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow:
+    0 24px 60px rgba(5, 22, 34, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+}
+
+html body .sidebar .brand-row {
+  padding: 6px 8px 16px !important;
+  margin-bottom: 14px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+html body .sidebar .logo {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 15px !important;
+  background: linear-gradient(135deg, #f3ce7a 0%, #d6a84f 55%, #b6842c 100%) !important;
+  color: #061a26 !important;
+  box-shadow: 0 10px 24px rgba(214, 168, 79, 0.35) !important;
+}
+
+html body .sidebar .brand-row h3 {
+  font-size: 18.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.4px;
+  color: #ffffff;
+}
+
+html body .sidebar .brand-row span {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  color: #f3ce7a !important;
+  letter-spacing: 0.3px;
+}
+
+/* Sidebar Identity Card */
+.sb-identity-card {
+  padding: 13px 14px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.11),
+    rgba(255, 255, 255, 0.04)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+
+.sb-id-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: rgba(214, 168, 79, 0.20);
+  color: #fde68a;
+  font-size: 10.5px;
+  font-weight: 800;
+  margin-bottom: 7px;
+}
+
+.sb-identity-card strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb-identity-card small {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.sb-section-label {
+  padding: 0 10px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  color: rgba(255, 255, 255, 0.45);
+  flex-shrink: 0;
+}
+
+html body .sidebar nav a {
+  position: relative;
+  padding: 11px 14px !important;
+  border-radius: 13px !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  color: rgba(255, 255, 255, 0.74) !important;
+  transition: all 0.22s ease !important;
+}
+
+html body .sidebar nav a:hover {
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: #ffffff !important;
+  transform: translateX(3px);
+}
+
+html body .sidebar nav a.active {
+  background: linear-gradient(
+    90deg,
+    rgba(20, 184, 166, 0.26) 0%,
+    rgba(214, 168, 79, 0.14) 100%
+  ) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(94, 234, 212, 0.30);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+html body .sidebar nav a.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 0 6px 6px 0;
+  background: linear-gradient(180deg, #f3ce7a, #14b8a6);
+}
+
+html body .sidebar .logout {
+  padding: 12px 15px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(
+    135deg,
+    rgba(239, 68, 68, 0.18),
+    rgba(255, 255, 255, 0.07)
+  ) !important;
+  border: 1px solid rgba(252, 165, 165, 0.24) !important;
+  color: #fecaca !important;
+  font-weight: 800 !important;
+  transition: all 0.2s ease;
+}
+
+html body .sidebar .logout:hover {
+  background: rgba(239, 68, 68, 0.32) !important;
+  color: #ffffff !important;
+}
+
+/* 2. MAIN CONTENT OFFSET FOR FLOATING DOCK */
+html body .main-content {
+  margin-left: 306px !important;
+  width: calc(100% - 306px) !important;
+  padding: 18px 28px 38px 12px !important;
+}
+
+/* 3. ELEVATED GLASS COMMAND TOPBAR */
+html body .topbar {
+  background: rgba(255, 255, 255, 0.84) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.95) !important;
+  padding: 15px 22px !important;
+  border-radius: 22px !important;
+  margin-bottom: 24px !important;
+  box-shadow:
+    0 14px 36px rgba(7, 29, 43, 0.07),
+    0 2px 6px rgba(7, 29, 43, 0.04) !important;
+}
+
+.tb-left h2 {
+  font-size: 24px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.6px;
+  color: #071d2b;
+  margin-top: 3px;
+}
+
+.tb-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  color: #64748b;
+}
+
+.tb-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.18);
+}
+
+.tb-sep {
+  color: #cbd5e1;
+}
+
+.tb-role-chip {
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: #e6f4f1;
+  color: #0f766e;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.tb-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tb-date-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-radius: 13px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+html body .topbar .profile {
+  padding: 7px 13px 7px 8px !important;
+  border-radius: 16px !important;
+  background: linear-gradient(135deg, #071d2b, #0c3b49) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(214, 168, 79, 0.35) !important;
+  box-shadow: 0 10px 24px rgba(7, 29, 43, 0.18) !important;
+}
+
+html body .topbar .avatar {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #f3ce7a, #d6a84f) !important;
+  color: #071d2b !important;
+  font-weight: 900 !important;
+}
+
+html body .topbar .profile strong {
+  font-size: 13px !important;
+  color: #ffffff !important;
+}
+
+html body .topbar .profile span {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  color: #99f6e4 !important;
+  font-size: 11px !important;
+  font-weight: 600;
+}
+
+/* 4. LUXURY HERO BANNERS ACROSS ALL PAGES */
+html body .hero,
+html body .lead-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 34px 38px !important;
+  border-radius: 26px !important;
+  background:
+    radial-gradient(circle at 88% 18%, rgba(214, 168, 79, 0.34), transparent 32%),
+    radial-gradient(circle at 15% 90%, rgba(20, 184, 166, 0.28), transparent 40%),
+    linear-gradient(125deg, #061a26 0%, #0a3442 52%, #0f6b63 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 22px 50px rgba(6, 26, 38, 0.22) !important;
+}
+
+html body .hero::before,
+html body .lead-hero::before {
+  content: "";
+  position: absolute;
+  right: -55px;
+  bottom: -65px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  border: 28px solid rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+html body .hero span {
+  background: rgba(214, 168, 79, 0.22) !important;
+  border: 1px solid rgba(243, 206, 122, 0.45) !important;
+  color: #fde68a !important;
+  font-size: 11.5px !important;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+/* 5. 3D BENTO STAT CARDS */
+html body .stat,
+html body .lead-metric,
+html body .dept-metric {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%) !important;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 22px !important;
+  box-shadow:
+    0 14px 32px rgba(7, 29, 43, 0.06),
+    inset 0 1px 0 #ffffff !important;
+  transition: transform 0.24s ease, box-shadow 0.24s ease !important;
+}
+
+html body .stat::before,
+html body .lead-metric::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #0b3b4a, #0f766e, #d6a84f);
+}
+
+html body .stat:hover,
+html body .lead-metric:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 42px rgba(7, 29, 43, 0.11) !important;
+}
+
+html body .stat h3,
+html body .lead-metric strong {
+  font-size: 30px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.8px;
+  color: #071d2b !important;
+}
+
+/* 6. BENTO PANELS & COURSE / QUIZ / ROUTINE CARDS */
+html body .panel,
+html body .lead-panel {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 24px !important;
+  box-shadow:
+    0 16px 38px rgba(7, 29, 43, 0.06),
+    0 2px 6px rgba(7, 29, 43, 0.03) !important;
+}
+
+html body .course-card,
+html body .lq-card,
+html body .routine-card,
+html body .mat-card,
+html body .theory-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 1px solid #dbe4ee !important;
+  border-radius: 22px !important;
+  box-shadow: 0 14px 32px rgba(7, 29, 43, 0.06) !important;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease !important;
+}
+
+html body .course-card::before,
+html body .lq-card::before,
+html body .routine-card::before,
+html body .mat-card::before,
+html body .theory-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #071d2b 0%, #0f766e 55%, #d6a84f 100%);
+}
+
+html body .course-card:hover,
+html body .lq-card:hover,
+html body .routine-card:hover,
+html body .mat-card:hover,
+html body .theory-card:hover {
+  transform: translateY(-5px) !important;
+  border-color: #99f6e4 !important;
+  box-shadow: 0 22px 46px rgba(7, 29, 43, 0.12) !important;
+}
+
+/* Inner Announcement & Notice Cards */
+html body .notice {
+  background: linear-gradient(135deg, #ffffff 0%, #f4f9f8 100%) !important;
+  border: 1px solid #dce8e6 !important;
+  border-left: 4px solid #0f766e !important;
+  border-radius: 16px !important;
+  transition: transform 0.2s ease;
+}
+
+html body .notice:hover {
+  transform: translateX(3px);
+}
+
+/* Upgraded Data Tables */
+html body .data-table th,
+html body .lead-table th,
+html body .lq-table th {
+  background: linear-gradient(135deg, #071d2b, #0b3b4a) !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.4px;
+}
+
+@media (max-width: 900px) {
+  .tb-date-pill {
+    display: none;
+  }
+  html body .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 16px !important;
+  }
+}
