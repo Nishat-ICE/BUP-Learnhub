@@ -6,6 +6,8 @@ const mongoose = require("mongoose");
 const multer = require("multer");
 
 const Routine = require("../models/Routine");
+const Course = require("../models/Course");
+const { getDepartmentCourseIds } = require("../services/departmentScope");
 
 const {
   protect,
@@ -67,9 +69,9 @@ const upload = multer({
   limits: {
     fileSize: 10 * 1024 * 1024,
     files: 1,
-    fields: 4,
-    parts: 5,
-    fieldSize: 3000
+    fields: 6,
+    parts: 7,
+    fieldSize: 6000
   }
 }).single("file");
 
@@ -116,7 +118,8 @@ function safeView(item) {
   return {
     _id: item._id,
     title: item.title,
-    facultyHeader: item.facultyHeader || "FACULTY OF SCIENCE AND TECHNOLOGY (FST)",
+    facultyHeader:
+      item.facultyHeader || "FACULTY OF SCIENCE AND TECHNOLOGY (FST)",
     programHeader: item.programHeader || "PROGRAM: BICE & MICE",
     description: item.description || "",
     department: item.department,
@@ -161,7 +164,8 @@ async function findRoutine(req, res) {
 function sendError(res, error) {
   if (
     error.name === "ValidationError" ||
-    error.name === "CastError"
+    error.name === "CastError" ||
+    /must be|department/i.test(error.message || "")
   ) {
     return res.status(400).json({
       message: error.message
@@ -195,13 +199,13 @@ router.get(
         return res.json([]);
       }
 
-      const ownDepartmentQuery = departmentKey &&
-        departmentKey !== "all"
-        ? [
-            { departmentKey },
-            ...(department ? [{ department }] : [])
-          ]
-        : [];
+      const ownDepartmentQuery =
+        departmentKey && departmentKey !== "all"
+          ? [
+              { departmentKey },
+              ...(department ? [{ department }] : [])
+            ]
+          : [];
 
       const filter =
         req.user.role === "staff"
@@ -233,8 +237,6 @@ router.get(
   }
 );
 
-// Staff uploads a published routine for THEIR account department.
-// Client-supplied department or section values are ignored.
 router.post(
   "/",
   authorize("staff"),
@@ -263,6 +265,7 @@ router.post(
 
       const routine = await Routine.create({
         ...fields,
+        kind: "file",
         ...fileInfo(req.file),
         isPublished: true,
         uploadedBy: req.user._id,
@@ -286,8 +289,6 @@ router.post(
   }
 );
 
-// Only the Staff member who uploaded the routine may edit it.
-// Department always comes from the Staff account.
 router.put(
   "/:id",
   authorize("staff"),
@@ -415,20 +416,9 @@ router.get(
         routine.storedName
       );
 
-      res.setHeader(
-        "X-Content-Type-Options",
-        "nosniff"
-      );
-
-      res.setHeader(
-        "Cache-Control",
-        "private, no-store"
-      );
-
-      res.setHeader(
-        "Content-Type",
-        routine.mimeType
-      );
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("Content-Type", routine.mimeType);
 
       if (req.query.download === "1") {
         return res.download(
@@ -444,9 +434,7 @@ router.get(
         );
       }
 
-      const safeName = encodeURIComponent(
-        routine.originalName
-      );
+      const safeName = encodeURIComponent(routine.originalName);
 
       res.setHeader(
         "Content-Disposition",
@@ -466,8 +454,7 @@ router.get(
   }
 );
 
-
-// Inline HTML preview for .docx routine files (so View works without downloading)
+// Inline HTML preview for .docx routine files
 router.get(
   "/:id/preview",
   authorize("staff", "student", "faculty"),
@@ -509,13 +496,9 @@ router.get(
   }
 );
 
-
 // ============================================================
-// AUTO ROUTINE GENERATOR ENGINE (Conflict-Free Department Timetable)
+// 1. AUTO WEEKLY CLASS ROUTINE GENERATOR
 // ============================================================
-const Course = require("../models/Course");
-const { getDepartmentCourseIds } = require("../services/departmentScope");
-
 const DEFAULT_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"];
 const DEFAULT_SLOTS = [
   "08:30 - 09:50",
@@ -531,12 +514,10 @@ function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
       : ["Room 401", "Room 402", "Lab 301"];
 
   const entries = [];
-  // Track occupied (day, slot) for each faculty and room so there is ZERO clash
   const busyFaculty = new Set();
   const busyRoom = new Set();
   const courseDayUsed = new Set();
 
-  // Create lecture tasks (each course gets `sessionsPerCourse` classes per week on distinct days)
   const tasks = [];
   courses.forEach((c, idx) => {
     const count = Math.max(1, Math.min(4, Number(sessionsPerCourse) || 2));
@@ -546,7 +527,6 @@ function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
         courseTitle: c.title || "Academic Course",
         facultyName: c.faculty?.name || "Assigned Faculty",
         facultyId: String(c.faculty?._id || c.faculty || idx),
-        sessionIndex: s,
         preferredRoom: roomList[(idx + s) % roomList.length]
       });
     }
@@ -566,7 +546,6 @@ function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
       const day = DEFAULT_DAYS[dayIdx];
       const slot = DEFAULT_SLOTS[slotIdx];
 
-      // Avoid putting the same course twice on the same day unless necessary
       const sameDayKey = `${task.courseCode}|${day}`;
       if (attempt < totalCells && courseDayUsed.has(sameDayKey)) {
         continue;
@@ -575,7 +554,6 @@ function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
       const facKey = `${day}|${slot}|${task.facultyId}`;
       if (busyFaculty.has(facKey)) continue;
 
-      // Find an available room for this (day, slot)
       let chosenRoom = null;
       for (let r = 0; r < roomList.length; r++) {
         const candidate = roomList[(r + dayIdx + slotIdx) % roomList.length];
@@ -607,9 +585,11 @@ function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
     }
 
     if (!placed) {
-      // Fallback placement if grid is completely saturated
       const day = DEFAULT_DAYS[entries.length % DEFAULT_DAYS.length];
-      const slot = DEFAULT_SLOTS[Math.floor(entries.length / DEFAULT_DAYS.length) % DEFAULT_SLOTS.length];
+      const slot =
+        DEFAULT_SLOTS[
+          Math.floor(entries.length / DEFAULT_DAYS.length) % DEFAULT_SLOTS.length
+        ];
       entries.push({
         day,
         slot,
@@ -628,7 +608,6 @@ function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
   };
 }
 
-// POST /api/routines/auto-generate -> Generates a conflict-free preview grid from department courses
 router.post(
   "/auto-generate",
   authorize("staff"),
@@ -672,19 +651,20 @@ router.post(
   }
 );
 
-// POST /api/routines/generated -> Saves & publishes the auto-generated routine
 router.post(
   "/generated",
   authorize("staff"),
   async (req, res) => {
     try {
       const fields = validateMetadata(req.body, req.user.department);
-      const days = Array.isArray(req.body?.days) && req.body.days.length
-        ? req.body.days
-        : DEFAULT_DAYS;
-      const slots = Array.isArray(req.body?.slots) && req.body.slots.length
-        ? req.body.slots
-        : DEFAULT_SLOTS;
+      const days =
+        Array.isArray(req.body?.days) && req.body.days.length
+          ? req.body.days
+          : DEFAULT_DAYS;
+      const slots =
+        Array.isArray(req.body?.slots) && req.body.slots.length
+          ? req.body.slots
+          : DEFAULT_SLOTS;
       const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
 
       if (entries.length === 0) {
@@ -725,7 +705,6 @@ router.post(
   }
 );
 
-// PUT /api/routines/:id/generated -> Update an existing auto-generated routine
 router.put(
   "/:id/generated",
   authorize("staff"),
@@ -774,8 +753,7 @@ router.put(
 );
 
 // ============================================================
-// BUP OFFICIAL EXAM ROUTINE AUTO-GENERATOR (Date x Batch Matrix)
-// Skips Fridays & Saturdays and spaces exams with study gaps
+// 2. BUP OFFICIAL EXAM ROUTINE AUTO-GENERATOR (Start Date to End Date)
 // ============================================================
 const DAY_NAMES_FULL = [
   "Sunday",
@@ -819,7 +797,6 @@ function buildExamDates(startDateStr, endDateStr) {
     }
   }
 
-  // Fallback if range had no working days
   while (result.length < 5 && safety < 60) {
     safety++;
     const dow = cur.getDay();
@@ -866,41 +843,12 @@ function parseBatchColumns(rawBatches) {
   return parsed.length > 0 ? parsed : fallback;
 }
 
-const BUP_ICT_EXAM_CATALOG = [
-  [
-    { code: "ICE-4105", title: "Optical Communication" },
-    { code: "ICE-4103", title: "Information, Network and Software Security" },
-    { code: "ICE-4101", title: "Software Testing and Maintenance" }
-  ],
-  [
-    { code: "ICE-3201", title: "Microprocessor and Computer Architecture" },
-    { code: "ICE-3207", title: "Software and Requirement Engineering" },
-    { code: "ICE-3203", title: "Microwave Engineering and Antenna" }
-  ],
-  [
-    { code: "ICE-2205", title: "Signals and Systems" },
-    { code: "ICE-2203", title: "Database Management System" },
-    { code: "ICE-2207", title: "Computer Network" }
-  ],
-  [
-    { code: "MATH-1205", title: "Mathematics-II (Ordinary and Partial Differential Equations)" },
-    { code: "ICE-1207", title: "Discrete Mathematics" },
-    { code: "ICE-1203", title: "Electronic Devices and Circuit" }
-  ],
-  [
-    { code: "MICE-5102", title: "Information and Cyber Security" },
-    { code: "MICE-5103", title: "Big Data Analytics and Design" },
-    { code: "MICE-5101", title: "Advanced Machine Learning" }
-  ]
-];
-
-// Staggered row indices per batch (matches BUP Official Exam Routine photo with study gaps!)
 const STAGGER_PATTERNS = [
-  [1, 4, 6], // Batch 1 (e.g., BICE 2023): Mon, Thu, Mon
-  [0, 3, 7], // Batch 2 (e.g., BICE 2024): Sun, Wed, Tue
-  [1, 4, 6], // Batch 3 (e.g., BICE 2025): Mon, Thu, Mon
-  [0, 3, 5], // Batch 4 (e.g., BICE 2026): Sun, Wed, Sun
-  [0, 4, 7]  // Batch 5 (e.g., MICE 2026): Sun, Thu, Tue
+  [1, 4, 6],
+  [0, 3, 7],
+  [1, 4, 6],
+  [0, 3, 5],
+  [0, 4, 7]
 ];
 
 router.post(
@@ -908,6 +856,16 @@ router.post(
   authorize("staff"),
   async (req, res) => {
     try {
+      if (
+        req.body?.startDate &&
+        req.body?.endDate &&
+        req.body.endDate < req.body.startDate
+      ) {
+        return res.status(400).json({
+          message: "Exam End Date cannot be earlier than Exam Start Date."
+        });
+      }
+
       const dept =
         typeof req.user.department === "string" && req.user.department.trim()
           ? req.user.department.trim()
@@ -919,10 +877,8 @@ router.post(
         .lean();
 
       const batches = parseBatchColumns(req.body?.batches);
-      if (req.body?.startDate && req.body?.endDate && req.body.endDate < req.body.startDate) { return res.status(400).json({ message: 'Exam End Date cannot be earlier than Exam Start Date.' }); }
       const examDates = buildExamDates(req.body?.startDate, req.body?.endDate);
 
-      // Parse custom subjects entered by Staff (Format: one line per batch, comma/semicolon separated subjects)
       const rawSubjectsText =
         typeof req.body?.batchSubjectsText === "string"
           ? req.body.batchSubjectsText.trim()
@@ -936,11 +892,11 @@ router.post(
         : [];
 
       const entries = [];
+      const totalDays = examDates.length;
 
       batches.forEach((batch, bIdx) => {
         let batchCourses = [];
 
-        // 1. Check if Staff provided subjects for this batch in the input box
         const matchingLine =
           customLines.find((line) =>
             line.toLowerCase().startsWith(batch.name.toLowerCase() + ":")
@@ -966,14 +922,12 @@ router.post(
               };
             });
         } else if (dbCourses.length > 0) {
-          // 2. Otherwise pull from this department's actual Courses in MongoDB
           for (let k = 0; k < Math.min(3, dbCourses.length); k++) {
             const c = dbCourses[(bIdx * 2 + k) % dbCourses.length];
             if (c) batchCourses.push({ code: c.code, title: c.title });
           }
         }
 
-        const totalDays = examDates.length;
         const count = batchCourses.length;
         const pattern = STAGGER_PATTERNS[bIdx % STAGGER_PATTERNS.length];
 
@@ -984,7 +938,6 @@ router.post(
           } else if (count === 1) {
             dateRowIdx = bIdx % totalDays;
           } else {
-            // Evenly space exams between Start Date and End Date with study gaps, staggered by batch
             const offset = bIdx % 2;
             const usableSpan = Math.max(1, totalDays - 1 - offset);
             dateRowIdx = Math.min(
@@ -1005,8 +958,6 @@ router.post(
             });
           }
         });
-          }
-        });
       });
 
       return res.json({
@@ -1021,7 +972,6 @@ router.post(
   }
 );
 
-// POST /api/routines/exam -> Save & publish BUP Official Exam Routine
 router.post(
   "/exam",
   authorize("staff"),
@@ -1082,7 +1032,6 @@ router.post(
   }
 );
 
-// PUT /api/routines/:id/exam -> Update existing Exam Routine
 router.put(
   "/:id/exam",
   authorize("staff"),
@@ -1098,8 +1047,12 @@ router.put(
       }
 
       const fields = validateMetadata(req.body, req.user.department);
-      const batches = Array.isArray(req.body?.batches) ? req.body.batches : routine.batches;
-      const examDates = Array.isArray(req.body?.examDates) ? req.body.examDates : routine.examDates;
+      const batches = Array.isArray(req.body?.batches)
+        ? req.body.batches
+        : routine.batches;
+      const examDates = Array.isArray(req.body?.examDates)
+        ? req.body.examDates
+        : routine.examDates;
       const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
 
       Object.assign(routine, fields);
@@ -1135,4 +1088,5 @@ router.put(
     }
   }
 );
+
 module.exports = router;
