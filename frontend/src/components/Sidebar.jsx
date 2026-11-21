@@ -92,11 +92,9 @@ export default function Sidebar() {
             <NavLink to="/assignments">
               <ClipboardCheck size={18} /> Assignments
             </NavLink>
-            {role === "student" && (
-              <NavLink to="/weekly-schedule">
+            <NavLink to="/weekly-schedule">
                 <CalendarDays size={18} /> Weekly Schedule
               </NavLink>
-            )}
             <NavLink to="/grades">
               <BarChart3 size={18} /> Grades &amp; Progress
             </NavLink>

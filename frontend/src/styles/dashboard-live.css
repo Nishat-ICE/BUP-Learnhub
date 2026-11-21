@@ -311,3 +311,49 @@ html body button.live-refresh {
     grid-template-columns: 1fr;
   }
 }
+.swp-today-banner {
+  margin-bottom: 22px;
+  border-left: 5px solid #0f766e !important;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ffffff 65%, #fefce8 100%) !important;
+}
+
+.swp-today-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.swp-today-head h3 {
+  margin: 5px 0 0;
+  color: #071d2b;
+  font-size: 20px;
+}
+
+.swp-count-pill {
+  padding: 7px 14px;
+  border-radius: 99px;
+  background: #071d2b;
+  color: #fde68a;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.swp-today-empty {
+  color: #64748b;
+  font-size: 13.5px;
+  padding: 6px 0;
+}
+
+.swp-today-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.swp-event-item.class {
+  border-left-color: #0d9488;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ffffff 100%);
+}
