@@ -24,6 +24,7 @@ const newForm = () => ({
   description: "",
   term: "July - December 2026",
   startDate: "2026-11-29",
+  endDate: "2026-12-08",
   workingDays: 8,
   batches:
     "BICE 2023 (1330-1630), BICE 2024 (1330-1630), BICE 2025 (0900-1200), BICE 2026 (0900-1200), MICE 2026 (1330-1630)",
@@ -324,7 +325,7 @@ export default function Routines() {
     try {
       const res = await api.post("/routines/auto-generate-exam", {
         startDate: form.startDate,
-        workingDays: Number(form.workingDays) || 8,
+        endDate: form.endDate,
         batches: form.batches,
         batchSubjectsText: form.batchSubjectsText
       });
@@ -948,14 +949,13 @@ export default function Routines() {
                 </label>
 
                 <label>
-                  Number of Exam Working Days (Sun - Thu)
+                  Exam End Date (Fridays &amp; Saturdays auto-skipped)
                   <input
-                    type="number"
-                    min="4"
-                    max="18"
-                    value={form.workingDays}
+                    type="date"
+                    value={form.endDate}
+                    min={form.startDate}
                     onChange={(e) =>
-                      setForm({ ...form, workingDays: e.target.value })
+                      setForm({ ...form, endDate: e.target.value })
                     }
                     required
                   />

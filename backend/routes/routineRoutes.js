@@ -787,17 +787,42 @@ const DAY_NAMES_FULL = [
   "Saturday"
 ];
 
-function buildExamDates(startDateStr, workingDaysCount = 8) {
-  const start = startDateStr ? new Date(`${startDateStr}T00:00:00`) : new Date("2026-11-29T00:00:00");
-  const cur = Number.isNaN(start.getTime()) ? new Date("2026-11-29T00:00:00") : new Date(start);
+function buildExamDates(startDateStr, endDateStr) {
+  const start = startDateStr
+    ? new Date(`${startDateStr}T00:00:00`)
+    : new Date("2026-11-29T00:00:00");
+  const cur = Number.isNaN(start.getTime())
+    ? new Date("2026-11-29T00:00:00")
+    : new Date(start);
+
+  const endParsed = endDateStr ? new Date(`${endDateStr}T00:00:00`) : null;
+  const hasValidEnd =
+    endParsed && !Number.isNaN(endParsed.getTime()) && endParsed >= cur;
 
   const result = [];
   let safety = 0;
-  const target = Math.max(4, Math.min(20, Number(workingDaysCount) || 8));
 
-  while (result.length < target && safety < 60) {
+  if (hasValidEnd) {
+    while (cur <= endParsed && safety < 60) {
+      safety++;
+      const dow = cur.getDay(); // 5 = Friday, 6 = Saturday
+      if (dow !== 5 && dow !== 6) {
+        const dd = String(cur.getDate()).padStart(2, "0");
+        const mm = String(cur.getMonth() + 1).padStart(2, "0");
+        const yyyy = cur.getFullYear();
+        result.push({
+          dateStr: `${dd}-${mm}-${yyyy}`,
+          dayName: DAY_NAMES_FULL[dow]
+        });
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
+
+  // Fallback if range had no working days
+  while (result.length < 5 && safety < 60) {
     safety++;
-    const dow = cur.getDay(); // 5 = Friday, 6 = Saturday
+    const dow = cur.getDay();
     if (dow !== 5 && dow !== 6) {
       const dd = String(cur.getDate()).padStart(2, "0");
       const mm = String(cur.getMonth() + 1).padStart(2, "0");
@@ -809,6 +834,7 @@ function buildExamDates(startDateStr, workingDaysCount = 8) {
     }
     cur.setDate(cur.getDate() + 1);
   }
+
   return result;
 }
 
@@ -893,10 +919,8 @@ router.post(
         .lean();
 
       const batches = parseBatchColumns(req.body?.batches);
-      const examDates = buildExamDates(
-        req.body?.startDate,
-        req.body?.workingDays || 8
-      );
+      if (req.body?.startDate && req.body?.endDate && req.body.endDate < req.body.startDate) { return res.status(400).json({ message: 'Exam End Date cannot be earlier than Exam Start Date.' }); }
+      const examDates = buildExamDates(req.body?.startDate, req.body?.endDate);
 
       // Parse custom subjects entered by Staff (Format: one line per batch, comma/semicolon separated subjects)
       const rawSubjectsText =
@@ -949,15 +973,27 @@ router.post(
           }
         }
 
+        const totalDays = examDates.length;
+        const count = batchCourses.length;
         const pattern = STAGGER_PATTERNS[bIdx % STAGGER_PATTERNS.length];
 
         batchCourses.forEach((courseItem, cIdx) => {
-          const dateRowIdx =
-            pattern[cIdx] !== undefined
-              ? pattern[cIdx]
-              : Math.min(examDates.length - 1, cIdx * 2 + (bIdx % 2));
+          let dateRowIdx;
+          if (totalDays === 8 && count <= 3 && pattern[cIdx] !== undefined) {
+            dateRowIdx = pattern[cIdx];
+          } else if (count === 1) {
+            dateRowIdx = bIdx % totalDays;
+          } else {
+            // Evenly space exams between Start Date and End Date with study gaps, staggered by batch
+            const offset = bIdx % 2;
+            const usableSpan = Math.max(1, totalDays - 1 - offset);
+            dateRowIdx = Math.min(
+              totalDays - 1,
+              offset + Math.round((cIdx * usableSpan) / (count - 1))
+            );
+          }
 
-          if (dateRowIdx < examDates.length) {
+          if (dateRowIdx >= 0 && dateRowIdx < totalDays) {
             const targetDate = examDates[dateRowIdx];
             entries.push({
               day: targetDate.dateStr,
@@ -967,6 +1003,8 @@ router.post(
               facultyName: "",
               room: batch.time
             });
+          }
+        });
           }
         });
       });
