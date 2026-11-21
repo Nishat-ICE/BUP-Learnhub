@@ -27,6 +27,11 @@ const newForm = () => ({
   workingDays: 8,
   batches:
     "BICE 2023 (1330-1630), BICE 2024 (1330-1630), BICE 2025 (0900-1200), BICE 2026 (0900-1200), MICE 2026 (1330-1630)",
+  batchSubjectsText: `BICE 2023: ICE-4105 Optical Communication ; ICE-4103 Information, Network and Software Security ; ICE-4101 Software Testing and Maintenance
+BICE 2024: ICE-3201 Microprocessor and Computer Architecture ; ICE-3207 Software and Requirement Engineering ; ICE-3203 Microwave Engineering and Antenna
+BICE 2025: ICE-2205 Signals and Systems ; ICE-2203 Database Management System ; ICE-2207 Computer Network
+BICE 2026: MATH-1205 Mathematics-II (Ordinary and partial Differential Equations) ; ICE-1207 Discrete Mathematics ; ICE-1203 Electronic Devices and Circuit
+MICE 2026: MICE-5102 Information and Cyber Security ; MICE-5103 Big Data Analytics and Design ; MICE-5101 Advanced Machine Learning`,
   rooms: "Room 401, Room 402, ICT Lab 1",
   sessionsPerCourse: 2
 });
@@ -320,7 +325,8 @@ export default function Routines() {
       const res = await api.post("/routines/auto-generate-exam", {
         startDate: form.startDate,
         workingDays: Number(form.workingDays) || 8,
-        batches: form.batches
+        batches: form.batches,
+        batchSubjectsText: form.batchSubjectsText
       });
 
       setExamGrid({
@@ -964,6 +970,56 @@ export default function Routines() {
                     }
                     required
                   />
+                </label>
+
+                <label className="routine-full">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                    <span>Subjects / Courses per Batch (One line per Batch, separated by semicolon `;`)</span>
+                    <button
+                      type="button"
+                      className="routine-secondary"
+                      style={{ padding: "5px 10px", fontSize: "11.5px" }}
+                      onClick={async () => {
+                        try {
+                          const res = await api.get("/courses");
+                          const list = Array.isArray(res.data) ? res.data : [];
+                          if (!list.length) {
+                            alert("No courses found in your department database yet.");
+                            return;
+                          }
+                          const bNames = form.batches
+                            .split(",")
+                            .map((b) => b.replace(/\(.*\)/, "").trim())
+                            .filter(Boolean);
+                          const lines = bNames.map((bName, bIdx) => {
+                            const picked = [];
+                            for (let k = 0; k < Math.min(3, list.length); k++) {
+                              const c = list[(bIdx * 2 + k) % list.length];
+                              if (c) picked.push(`${c.code} ${c.title}`);
+                            }
+                            return `${bName}: ${picked.join(" ; ")}`;
+                          });
+                          setForm({ ...form, batchSubjectsText: lines.join("\n") });
+                        } catch {
+                          alert("Could not load courses from database.");
+                        }
+                      }}
+                    >
+                      Load Courses from Database
+                    </button>
+                  </div>
+                  <textarea
+                    rows="6"
+                    value={form.batchSubjectsText}
+                    onChange={(e) =>
+                      setForm({ ...form, batchSubjectsText: e.target.value })
+                    }
+                    placeholder="BICE 2024: ICE-3201 Microprocessor ; ICE-3207 Software Engineering"
+                    required
+                  />
+                  <small>
+                    Enter the subjects for each batch above (separated by `;`). The generator will automatically assign dates (Sun-Thu, skipping Fri/Sat) with study gaps between exams!
+                  </small>
                 </label>
 
                 <div className="routine-full rt-gen-bar">

@@ -887,40 +887,76 @@ router.post(
           ? req.user.department.trim()
           : "ICT";
 
-      const isICT =
-        dept.toUpperCase() === "ICT" ||
-        dept.toLowerCase().includes("information");
-
       const deptCourseIds = await getDepartmentCourseIds(dept);
       const dbCourses = await Course.find({ _id: { $in: deptCourseIds } })
         .sort({ code: 1 })
         .lean();
 
       const batches = parseBatchColumns(req.body?.batches);
-      const examDates = buildExamDates(req.body?.startDate, req.body?.workingDays || 8);
+      const examDates = buildExamDates(
+        req.body?.startDate,
+        req.body?.workingDays || 8
+      );
+
+      // Parse custom subjects entered by Staff (Format: one line per batch, comma/semicolon separated subjects)
+      const rawSubjectsText =
+        typeof req.body?.batchSubjectsText === "string"
+          ? req.body.batchSubjectsText.trim()
+          : "";
+
+      const customLines = rawSubjectsText
+        ? rawSubjectsText
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter(Boolean)
+        : [];
 
       const entries = [];
 
       batches.forEach((batch, bIdx) => {
-        // Choose courses for this batch
         let batchCourses = [];
-        if (isICT && BUP_ICT_EXAM_CATALOG[bIdx]) {
-          batchCourses = [...BUP_ICT_EXAM_CATALOG[bIdx]];
+
+        // 1. Check if Staff provided subjects for this batch in the input box
+        const matchingLine =
+          customLines.find((line) =>
+            line.toLowerCase().startsWith(batch.name.toLowerCase() + ":")
+          ) || customLines[bIdx];
+
+        if (matchingLine) {
+          const afterColon = matchingLine.includes(":")
+            ? matchingLine.slice(matchingLine.indexOf(":") + 1)
+            : matchingLine;
+
+          batchCourses = afterColon
+            .split("|")
+            .flatMap((part) => part.split(";"))
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((itemText) => {
+              const sp = itemText.indexOf(" ");
+              const hasCode =
+                sp > 0 && /^[A-Z]{2,6}-?\d{3,4}/i.test(itemText.slice(0, sp));
+              return {
+                code: hasCode ? itemText.slice(0, sp).trim() : "",
+                title: hasCode ? itemText.slice(sp + 1).trim() : itemText
+              };
+            });
         } else if (dbCourses.length > 0) {
-          for (let k = 0; k < 3; k++) {
+          // 2. Otherwise pull from this department's actual Courses in MongoDB
+          for (let k = 0; k < Math.min(3, dbCourses.length); k++) {
             const c = dbCourses[(bIdx * 2 + k) % dbCourses.length];
-            if (c) {
-              batchCourses.push({ code: c.code, title: c.title });
-            }
+            if (c) batchCourses.push({ code: c.code, title: c.title });
           }
-        } else {
-          batchCourses = BUP_ICT_EXAM_CATALOG[bIdx % BUP_ICT_EXAM_CATALOG.length];
         }
 
         const pattern = STAGGER_PATTERNS[bIdx % STAGGER_PATTERNS.length];
 
         batchCourses.forEach((courseItem, cIdx) => {
-          const dateRowIdx = pattern[cIdx] ?? (cIdx * 2 + (bIdx % 2));
+          const dateRowIdx =
+            pattern[cIdx] !== undefined
+              ? pattern[cIdx]
+              : Math.min(examDates.length - 1, cIdx * 2 + (bIdx % 2));
+
           if (dateRowIdx < examDates.length) {
             const targetDate = examDates[dateRowIdx];
             entries.push({
