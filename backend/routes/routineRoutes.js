@@ -497,7 +497,7 @@ router.get(
 );
 
 // ============================================================
-// 1. AUTO WEEKLY CLASS ROUTINE GENERATOR
+// 1. AUTO WEEKLY CLASS ROUTINE GENERATOR (Strict Room & Time Clash Detection)
 // ============================================================
 const DEFAULT_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"];
 const DEFAULT_SLOTS = [
@@ -507,6 +507,41 @@ const DEFAULT_SLOTS = [
   "14:00 - 15:20"
 ];
 
+function detectScheduleClashes(entries) {
+  const roomBookings = new Map();
+  const facultyBookings = new Map();
+
+  for (const item of entries || []) {
+    const day = String(item.day || "").trim();
+    const slot = String(item.slot || "").trim();
+    const room = String(item.room || "").trim();
+    const courseCode = String(item.courseCode || "Course").trim();
+    const facultyName = String(item.facultyName || "").trim();
+
+    if (!day || !slot) continue;
+
+    if (room) {
+      const rKey = `${day.toLowerCase()}|${slot.toLowerCase()}|${room.toLowerCase()}`;
+      if (roomBookings.has(rKey)) {
+        const prevCourse = roomBookings.get(rKey);
+        return `Room Clash Detected! Room "${room}" is double-booked on ${day} (${slot}) for both ${prevCourse} and ${courseCode}. Routine cannot be generated or published.`;
+      }
+      roomBookings.set(rKey, courseCode);
+    }
+
+    if (facultyName && facultyName !== "Assigned Faculty") {
+      const fKey = `${day.toLowerCase()}|${slot.toLowerCase()}|${facultyName.toLowerCase()}`;
+      if (facultyBookings.has(fKey)) {
+        const prevCourse = facultyBookings.get(fKey);
+        return `Faculty Time Clash Detected! ${facultyName} is scheduled simultaneously on ${day} (${slot}) for both ${prevCourse} and ${courseCode}.`;
+      }
+      facultyBookings.set(fKey, courseCode);
+    }
+  }
+
+  return null;
+}
+
 function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
   const roomList =
     Array.isArray(rooms) && rooms.length > 0
@@ -514,8 +549,8 @@ function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
       : ["Room 401", "Room 402", "Lab 301"];
 
   const entries = [];
-  const busyFaculty = new Set();
-  const busyRoom = new Set();
+  const busyFaculty = new Map();
+  const busyRoom = new Map();
   const courseDayUsed = new Set();
 
   const tasks = [];
@@ -537,6 +572,7 @@ function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
 
   for (const task of tasks) {
     let placed = false;
+    let lastRoomConflict = "";
 
     for (let attempt = 0; attempt < totalCells * 2; attempt++) {
       const cellIndex = (cursor + attempt) % totalCells;
@@ -557,17 +593,21 @@ function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
       let chosenRoom = null;
       for (let r = 0; r < roomList.length; r++) {
         const candidate = roomList[(r + dayIdx + slotIdx) % roomList.length];
-        const roomKey = `${day}|${slot}|${candidate}`;
+        const roomKey = `${day}|${slot}|${candidate.toLowerCase()}`;
         if (!busyRoom.has(roomKey)) {
           chosenRoom = candidate;
-          busyRoom.add(roomKey);
+          busyRoom.set(roomKey, task.courseCode);
           break;
+        } else {
+          lastRoomConflict = `Room "${candidate}" is already booked on ${day} (${slot}) for ${busyRoom.get(
+            roomKey
+          )}`;
         }
       }
 
       if (!chosenRoom) continue;
 
-      busyFaculty.add(facKey);
+      busyFaculty.set(facKey, task.courseCode);
       courseDayUsed.add(sameDayKey);
 
       entries.push({
@@ -585,19 +625,14 @@ function buildSmartTimetable(courses, rooms, sessionsPerCourse = 2) {
     }
 
     if (!placed) {
-      const day = DEFAULT_DAYS[entries.length % DEFAULT_DAYS.length];
-      const slot =
-        DEFAULT_SLOTS[
-          Math.floor(entries.length / DEFAULT_DAYS.length) % DEFAULT_SLOTS.length
-        ];
-      entries.push({
-        day,
-        slot,
-        courseCode: task.courseCode,
-        courseTitle: task.courseTitle,
-        facultyName: task.facultyName,
-        room: task.preferredRoom
-      });
+      return {
+        clashError:
+          `Room / Time Clash Detected! Cannot schedule ${task.courseCode} (${task.courseTitle}) because all provided rooms (${roomList.join(
+            ", "
+          )}) are already occupied in the available time slots. ${
+            lastRoomConflict ? `(${lastRoomConflict}). ` : ""
+          }Please add another room or reduce classes per week.`
+      };
     }
   }
 
@@ -637,8 +672,25 @@ router.post(
         .map((r) => r.trim())
         .filter(Boolean);
 
+      // Check for duplicate room names entered in the rooms input box
+      const lowerRooms = rooms.map((r) => r.toLowerCase());
+      const duplicateRoom = rooms.find(
+        (r, i) => lowerRooms.indexOf(r.toLowerCase()) !== i
+      );
+      if (duplicateRoom) {
+        return res.status(409).json({
+          message: `Room Clash Detected! You entered "${duplicateRoom}" more than once in the Available Rooms box. Please provide distinct room names.`
+        });
+      }
+
       const sessionsPerCourse = Number(req.body?.sessionsPerCourse) || 2;
       const generated = buildSmartTimetable(courses, rooms, sessionsPerCourse);
+
+      if (generated.clashError) {
+        return res.status(409).json({
+          message: generated.clashError
+        });
+      }
 
       return res.json({
         department: dept,
@@ -670,6 +722,13 @@ router.post(
       if (entries.length === 0) {
         return res.status(400).json({
           message: "Generate the routine timetable grid before publishing."
+        });
+      }
+
+      const clashMsg = detectScheduleClashes(entries);
+      if (clashMsg) {
+        return res.status(409).json({
+          message: clashMsg
         });
       }
 
@@ -722,6 +781,13 @@ router.put(
       const fields = validateMetadata(req.body, req.user.department);
       const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
 
+      const clashMsg = detectScheduleClashes(entries);
+      if (clashMsg) {
+        return res.status(409).json({
+          message: clashMsg
+        });
+      }
+
       Object.assign(routine, fields);
       routine.kind = "generated";
       if (Array.isArray(req.body?.days) && req.body.days.length) {
@@ -751,7 +817,6 @@ router.put(
     }
   }
 );
-
 // ============================================================
 // 2. BUP OFFICIAL EXAM ROUTINE AUTO-GENERATOR (Start Date to End Date)
 // ============================================================

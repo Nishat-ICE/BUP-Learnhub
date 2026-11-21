@@ -153,12 +153,197 @@ function BupExamRoutineSheet({
 // ============================================================
 // WEEKLY CLASS TIMETABLE GRID
 // ============================================================
+function findLiveClash(entries = []) {
+  const roomMap = new Map();
+  const facMap = new Map();
+
+  for (const item of entries) {
+    const day = String(item.day || "").trim();
+    const slot = String(item.slot || "").trim();
+    const room = String(item.room || "").trim();
+    const code = String(item.courseCode || "Course").trim();
+    const fac = String(item.facultyName || "").trim();
+
+    if (!day || !slot) continue;
+
+    if (room) {
+      const rKey = `${day.toLowerCase()}|${slot.toLowerCase()}|${room.toLowerCase()}`;
+      if (roomMap.has(rKey)) {
+        return `Room Clash Detected! Room "${room}" is booked at the same time on ${day} (${slot}) for both ${roomMap.get(
+          rKey
+        )} and ${code}. Please change the room or time slot.`;
+      }
+      roomMap.set(rKey, code);
+    }
+
+    if (fac && fac !== "Assigned Faculty") {
+      const fKey = `${day.toLowerCase()}|${slot.toLowerCase()}|${fac.toLowerCase()}`;
+      if (facMap.has(fKey)) {
+        return `Faculty Clash Detected! ${fac} is assigned at the same time on ${day} (${slot}) for both ${facMap.get(
+          fKey
+        )} and ${code}.`;
+      }
+      facMap.set(fKey, code);
+    }
+  }
+  return null;
+}
+
 function RoutineTimetableGrid({
   days = [],
   slots = [],
   entries = [],
   editable = false,
-  onChangeCell
+  onChangeEntry
+}) {
+  const clashWarning = editable ? findLiveClash(entries) : null;
+
+  return (
+    <div className="rt-grid-wrap">
+      {clashWarning && (
+        <div className="routine-message error" role="alert" style={{ marginBottom: "14px" }}>
+          {clashWarning}
+        </div>
+      )}
+
+      <table className="rt-timetable">
+        <thead>
+          <tr>
+            <th>Day / Time</th>
+            {slots.map((slot) => (
+              <th key={slot}>{slot}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {days.map((day) => (
+            <tr key={day}>
+              <td className="rt-day-cell">
+                <strong>{day}</strong>
+              </td>
+              {slots.map((slot) => {
+                const cellItems = entries
+                  .map((entry, globalIdx) => ({ entry, globalIdx }))
+                  .filter(
+                    ({ entry }) => entry.day === day && entry.slot === slot
+                  );
+
+                const isClashingCell =
+                  cellItems.length > 1 &&
+                  new Set(
+                    cellItems.map((x) =>
+                      String(x.entry.room || "").trim().toLowerCase()
+                    )
+                  ).size < cellItems.length;
+
+                return (
+                  <td
+                    key={slot}
+                    className="rt-slot-cell"
+                    style={
+                      isClashingCell
+                        ? { background: "#fff1f2", border: "2px solid #e11d48" }
+                        : undefined
+                    }
+                  >
+                    {cellItems.length === 0 ? (
+                      <span className="rt-free-slot">-</span>
+                    ) : (
+                      cellItems.map(({ entry: item, globalIdx }) => (
+                        <div
+                          className="rt-class-pill"
+                          key={globalIdx}
+                          style={
+                            isClashingCell
+                              ? {
+                                  borderColor: "#e11d48",
+                                  borderLeftColor: "#be123c",
+                                  background: "#ffe4e6",
+                                  marginBottom: "6px"
+                                }
+                              : { marginBottom: "6px" }
+                          }
+                        >
+                          <div className="rt-pill-top">
+                            <strong>{item.courseCode}</strong>
+                            {editable ? (
+                              <input
+                                className="rt-room-input"
+                                value={item.room}
+                                onChange={(e) =>
+                                  onChangeEntry &&
+                                  onChangeEntry(globalIdx, "room", e.target.value)
+                                }
+                                title="Edit Room Number"
+                              />
+                            ) : (
+                              <span className="rt-room-badge">{item.room}</span>
+                            )}
+                          </div>
+                          <span className="rt-course-name">{item.courseTitle}</span>
+                          <small className="rt-fac-name">{item.facultyName}</small>
+
+                          {editable && (
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "4px",
+                                marginTop: "6px"
+                              }}
+                            >
+                              <select
+                                value={item.day}
+                                onChange={(e) =>
+                                  onChangeEntry &&
+                                  onChangeEntry(globalIdx, "day", e.target.value)
+                                }
+                                style={{
+                                  padding: "3px 5px",
+                                  fontSize: "10.5px",
+                                  borderRadius: "5px"
+                                }}
+                                title="Move to Day"
+                              >
+                                {days.map((d) => (
+                                  <option key={d} value={d}>
+                                    {d}
+                                  </option>
+                                ))}
+                              </select>
+
+                              <select
+                                value={item.slot}
+                                onChange={(e) =>
+                                  onChangeEntry &&
+                                  onChangeEntry(globalIdx, "slot", e.target.value)
+                                }
+                                style={{
+                                  padding: "3px 5px",
+                                  fontSize: "10.5px",
+                                  borderRadius: "5px"
+                                }}
+                                title="Move to Time Slot"
+                              >
+                                {slots.map((s) => (
+                                  <option key={s} value={s}>
+                                    {s}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }) {
   const getCellEntries = (day, slot) =>
     entries.filter((e) => e.day === day && e.slot === slot);
@@ -454,19 +639,19 @@ export default function Routines() {
     }
   }
 
-  function updateClassCellField(day, slot, matchIdx, field, value) {
+  function updateClassCellField(globalIdx, field, value) {
     if (!generatedGrid) return;
-    let seen = -1;
-    const nextEntries = generatedGrid.entries.map((entry) => {
-      if (entry.day === day && entry.slot === slot) {
-        seen += 1;
-        if (seen === matchIdx) {
-          return { ...entry, [field]: value };
-        }
-      }
-      return entry;
-    });
+    const nextEntries = generatedGrid.entries.map((entry, idx) =>
+      idx === globalIdx ? { ...entry, [field]: value } : entry
+    );
     setGeneratedGrid({ ...generatedGrid, entries: nextEntries });
+
+    const clash = findLiveClash(nextEntries);
+    if (clash) {
+      setMessage({ type: "error", text: clash });
+    } else if (message?.type === "error" && /Clash Detected/i.test(message.text)) {
+      setMessage(null);
+    }
   }
 
   async function saveGeneratedClassRoutine(event) {
@@ -478,6 +663,12 @@ export default function Routines() {
         type: "error",
         text: "Click 'Auto-Generate Class Timetable' first."
       });
+      return;
+    }
+
+    const clashError = findLiveClash(generatedGrid.entries);
+    if (clashError) {
+      setMessage({ type: "error", text: clashError });
       return;
     }
 
@@ -1134,7 +1325,7 @@ export default function Routines() {
                       className="routine-primary"
                       disabled={busy}
                     >
-                      <Wand2 size={16} /> Publish Class Routine
+                      <Wand2 size={16} /> {findLiveClash(generatedGrid.entries) ? 'Resolve Clash to Publish' : 'Publish Class Routine'}
                     </button>
                   )}
                 </div>
@@ -1146,7 +1337,7 @@ export default function Routines() {
                       slots={generatedGrid.slots}
                       entries={generatedGrid.entries}
                       editable
-                      onChangeCell={updateClassCellField}
+                      onChangeEntry={updateClassCellField}
                     />
                   </div>
                 )}
