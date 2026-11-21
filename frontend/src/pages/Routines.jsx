@@ -17,6 +17,14 @@ import {
 } from "lucide-react";
 import "../styles/routines.css";
 
+const defaultSubjectsText = [
+  "BICE 2023: ICE-4105 Optical Communication ; ICE-4103 Information, Network and Software Security ; ICE-4101 Software Testing and Maintenance",
+  "BICE 2024: ICE-3201 Microprocessor and Computer Architecture ; ICE-3207 Software and Requirement Engineering ; ICE-3203 Microwave Engineering and Antenna",
+  "BICE 2025: ICE-2205 Signals and Systems ; ICE-2203 Database Management System ; ICE-2207 Computer Network",
+  "BICE 2026: MATH-1205 Mathematics-II (Ordinary and partial Differential Equations) ; ICE-1207 Discrete Mathematics ; ICE-1203 Electronic Devices and Circuit",
+  "MICE 2026: MICE-5102 Information and Cyber Security ; MICE-5103 Big Data Analytics and Design ; MICE-5101 Advanced Machine Learning"
+].join("\n");
+
 const newForm = () => ({
   title: "SEMESTER FINAL EXAMINATION ROUTINE (JULY- DECEMBER 2026)",
   facultyHeader: "FACULTY OF SCIENCE AND TECHNOLOGY (FST)",
@@ -25,14 +33,9 @@ const newForm = () => ({
   term: "July - December 2026",
   startDate: "2026-11-29",
   endDate: "2026-12-08",
-  workingDays: 8,
   batches:
     "BICE 2023 (1330-1630), BICE 2024 (1330-1630), BICE 2025 (0900-1200), BICE 2026 (0900-1200), MICE 2026 (1330-1630)",
-  batchSubjectsText: `BICE 2023: ICE-4105 Optical Communication ; ICE-4103 Information, Network and Software Security ; ICE-4101 Software Testing and Maintenance
-BICE 2024: ICE-3201 Microprocessor and Computer Architecture ; ICE-3207 Software and Requirement Engineering ; ICE-3203 Microwave Engineering and Antenna
-BICE 2025: ICE-2205 Signals and Systems ; ICE-2203 Database Management System ; ICE-2207 Computer Network
-BICE 2026: MATH-1205 Mathematics-II (Ordinary and partial Differential Equations) ; ICE-1207 Discrete Mathematics ; ICE-1203 Electronic Devices and Circuit
-MICE 2026: MICE-5102 Information and Cyber Security ; MICE-5103 Big Data Analytics and Design ; MICE-5101 Advanced Machine Learning`,
+  batchSubjectsText: defaultSubjectsText,
   rooms: "Room 401, Room 402, ICT Lab 1",
   sessionsPerCourse: 2
 });
@@ -64,8 +67,44 @@ function fullDepartmentTitle(dept) {
   return `DEPARTMENT OF ${raw.toUpperCase()}`;
 }
 
+function findLiveClash(entries = []) {
+  const roomMap = new Map();
+  const facMap = new Map();
+
+  for (const item of entries) {
+    const day = String(item.day || "").trim();
+    const slot = String(item.slot || "").trim();
+    const room = String(item.room || "").trim();
+    const code = String(item.courseCode || "Course").trim();
+    const fac = String(item.facultyName || "").trim();
+
+    if (!day || !slot) continue;
+
+    if (room) {
+      const rKey = `${day.toLowerCase()}|${slot.toLowerCase()}|${room.toLowerCase()}`;
+      if (roomMap.has(rKey)) {
+        return `Room Clash Detected! Room "${room}" is booked at the same time on ${day} (${slot}) for both ${roomMap.get(
+          rKey
+        )} and ${code}. Please change the room or time slot.`;
+      }
+      roomMap.set(rKey, code);
+    }
+
+    if (fac && fac !== "Assigned Faculty") {
+      const fKey = `${day.toLowerCase()}|${slot.toLowerCase()}|${fac.toLowerCase()}`;
+      if (facMap.has(fKey)) {
+        return `Faculty Clash Detected! ${fac} is assigned at the same time on ${day} (${slot}) for both ${facMap.get(
+          fKey
+        )} and ${code}.`;
+      }
+      facMap.set(fKey, code);
+    }
+  }
+  return null;
+}
+
 // ============================================================
-// BUP OFFICIAL EXAM ROUTINE TABLE (Matches uploaded photo 100%)
+// 1. BUP OFFICIAL EXAM ROUTINE TABLE
 // ============================================================
 function BupExamRoutineSheet({
   facultyHeader,
@@ -132,7 +171,11 @@ function BupExamRoutineSheet({
                           placeholder="Empty (Study Gap)"
                           onChange={(e) =>
                             onChangeExamCell &&
-                            onChangeExamCell(dRow.dateStr, b.name, e.target.value)
+                            onChangeExamCell(
+                              dRow.dateStr,
+                              b.name,
+                              e.target.value
+                            )
                           }
                         />
                       ) : (
@@ -151,44 +194,8 @@ function BupExamRoutineSheet({
 }
 
 // ============================================================
-// WEEKLY CLASS TIMETABLE GRID
+// 2. WEEKLY CLASS TIMETABLE GRID (With Live Room Clash Detection)
 // ============================================================
-function findLiveClash(entries = []) {
-  const roomMap = new Map();
-  const facMap = new Map();
-
-  for (const item of entries) {
-    const day = String(item.day || "").trim();
-    const slot = String(item.slot || "").trim();
-    const room = String(item.room || "").trim();
-    const code = String(item.courseCode || "Course").trim();
-    const fac = String(item.facultyName || "").trim();
-
-    if (!day || !slot) continue;
-
-    if (room) {
-      const rKey = `${day.toLowerCase()}|${slot.toLowerCase()}|${room.toLowerCase()}`;
-      if (roomMap.has(rKey)) {
-        return `Room Clash Detected! Room "${room}" is booked at the same time on ${day} (${slot}) for both ${roomMap.get(
-          rKey
-        )} and ${code}. Please change the room or time slot.`;
-      }
-      roomMap.set(rKey, code);
-    }
-
-    if (fac && fac !== "Assigned Faculty") {
-      const fKey = `${day.toLowerCase()}|${slot.toLowerCase()}|${fac.toLowerCase()}`;
-      if (facMap.has(fKey)) {
-        return `Faculty Clash Detected! ${fac} is assigned at the same time on ${day} (${slot}) for both ${facMap.get(
-          fKey
-        )} and ${code}.`;
-      }
-      facMap.set(fKey, code);
-    }
-  }
-  return null;
-}
-
 function RoutineTimetableGrid({
   days = [],
   slots = [],
@@ -201,7 +208,11 @@ function RoutineTimetableGrid({
   return (
     <div className="rt-grid-wrap">
       {clashWarning && (
-        <div className="routine-message error" role="alert" style={{ marginBottom: "14px" }}>
+        <div
+          className="routine-message error"
+          role="alert"
+          style={{ marginBottom: "14px" }}
+        >
           {clashWarning}
         </div>
       )}
@@ -272,7 +283,11 @@ function RoutineTimetableGrid({
                                 value={item.room}
                                 onChange={(e) =>
                                   onChangeEntry &&
-                                  onChangeEntry(globalIdx, "room", e.target.value)
+                                  onChangeEntry(
+                                    globalIdx,
+                                    "room",
+                                    e.target.value
+                                  )
                                 }
                                 title="Edit Room Number"
                               />
@@ -280,8 +295,12 @@ function RoutineTimetableGrid({
                               <span className="rt-room-badge">{item.room}</span>
                             )}
                           </div>
-                          <span className="rt-course-name">{item.courseTitle}</span>
-                          <small className="rt-fac-name">{item.facultyName}</small>
+                          <span className="rt-course-name">
+                            {item.courseTitle}
+                          </span>
+                          <small className="rt-fac-name">
+                            {item.facultyName}
+                          </small>
 
                           {editable && (
                             <div
@@ -295,7 +314,11 @@ function RoutineTimetableGrid({
                                 value={item.day}
                                 onChange={(e) =>
                                   onChangeEntry &&
-                                  onChangeEntry(globalIdx, "day", e.target.value)
+                                  onChangeEntry(
+                                    globalIdx,
+                                    "day",
+                                    e.target.value
+                                  )
                                 }
                                 style={{
                                   padding: "3px 5px",
@@ -315,7 +338,11 @@ function RoutineTimetableGrid({
                                 value={item.slot}
                                 onChange={(e) =>
                                   onChangeEntry &&
-                                  onChangeEntry(globalIdx, "slot", e.target.value)
+                                  onChangeEntry(
+                                    globalIdx,
+                                    "slot",
+                                    e.target.value
+                                  )
                                 }
                                 style={{
                                   padding: "3px 5px",
@@ -332,66 +359,6 @@ function RoutineTimetableGrid({
                               </select>
                             </div>
                           )}
-                        </div>
-                      ))
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}) {
-  const getCellEntries = (day, slot) =>
-    entries.filter((e) => e.day === day && e.slot === slot);
-
-  return (
-    <div className="rt-grid-wrap">
-      <table className="rt-timetable">
-        <thead>
-          <tr>
-            <th>Day / Time</th>
-            {slots.map((slot) => (
-              <th key={slot}>{slot}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {days.map((day) => (
-            <tr key={day}>
-              <td className="rt-day-cell">
-                <strong>{day}</strong>
-              </td>
-              {slots.map((slot) => {
-                const cellItems = getCellEntries(day, slot);
-                return (
-                  <td key={slot} className="rt-slot-cell">
-                    {cellItems.length === 0 ? (
-                      <span className="rt-free-slot">-</span>
-                    ) : (
-                      cellItems.map((item, idx) => (
-                        <div className="rt-class-pill" key={idx}>
-                          <div className="rt-pill-top">
-                            <strong>{item.courseCode}</strong>
-                            {editable ? (
-                              <input
-                                className="rt-room-input"
-                                value={item.room}
-                                onChange={(e) =>
-                                  onChangeCell &&
-                                  onChangeCell(day, slot, idx, "room", e.target.value)
-                                }
-                                title="Edit Room"
-                              />
-                            ) : (
-                              <span className="rt-room-badge">{item.room}</span>
-                            )}
-                          </div>
-                          <span className="rt-course-name">{item.courseTitle}</span>
-                          <small className="rt-fac-name">{item.facultyName}</small>
                         </div>
                       ))
                     )}
@@ -502,7 +469,6 @@ export default function Routines() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  // ---- 1. Auto-Generate BUP Exam Routine ----
   async function handleAutoGenerateExam() {
     setBusy(true);
     setMessage(null);
@@ -523,7 +489,7 @@ export default function Routines() {
 
       setMessage({
         type: "success",
-        text: "BUP Official Semester Examination Routine generated with automatic study gaps (Fridays & Saturdays skipped)! You can edit any cell before publishing."
+        text: "BUP Official Semester Examination Routine generated between Start Date and End Date (Fridays & Saturdays skipped)!"
       });
     } catch (error) {
       setMessage({ type: "error", text: errorMessage(error) });
@@ -534,8 +500,7 @@ export default function Routines() {
 
   function updateExamCell(dateStr, batchName, rawText) {
     if (!examGrid) return;
-    const text = rawText;
-    const trimmed = text.trim();
+    const trimmed = rawText.trim();
 
     const firstSpace = trimmed.indexOf(" ");
     const courseCode =
@@ -611,7 +576,6 @@ export default function Routines() {
     }
   }
 
-  // ---- 2. Auto-Generate Weekly Class Routine ----
   async function handleAutoGenerateClass() {
     setBusy(true);
     setMessage(null);
@@ -630,9 +594,10 @@ export default function Routines() {
 
       setMessage({
         type: "success",
-        text: `Smart class timetable generated for ${res.data.courseCount} courses!`
+        text: `Smart class timetable generated from your department's ${res.data.courseCount} courses in MongoDB with zero room/faculty clash!`
       });
     } catch (error) {
+      setGeneratedGrid(null);
       setMessage({ type: "error", text: errorMessage(error) });
     } finally {
       setBusy(false);
@@ -702,7 +667,6 @@ export default function Routines() {
     }
   }
 
-  // ---- 3. File Upload Routine ----
   async function saveFileRoutine(event) {
     event.preventDefault();
     setMessage(null);
@@ -751,7 +715,6 @@ export default function Routines() {
     }
   }
 
-  // ---- Official BUP Exam Routine Print / PDF ----
   function printExamRoutinePdf(item) {
     const win = window.open("", "_blank");
     if (!win) {
@@ -1034,7 +997,7 @@ export default function Routines() {
             <h2>Exam &amp; Class Routine Generator</h2>
             <p>
               {isStaff
-                ? "Auto-generate official BUP Semester Final Examination Routines (Date x Batch format), Weekly Class Routines, or upload routine files."
+                ? "Auto-generate official BUP Semester Final Examination Routines (Start Date to End Date), Conflict-Free Weekly Class Routines, or upload routine files."
                 : "View or download official Examination Routines and Class Timetables for your department."}
             </p>
           </div>
@@ -1164,8 +1127,18 @@ export default function Routines() {
                 </label>
 
                 <label className="routine-full">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-                    <span>Subjects / Courses per Batch (One line per Batch, separated by semicolon `;`)</span>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "8px"
+                    }}
+                  >
+                    <span>
+                      Subjects / Courses per Batch (One line per Batch, separated by semicolon `;`)
+                    </span>
                     <button
                       type="button"
                       className="routine-secondary"
@@ -1175,7 +1148,9 @@ export default function Routines() {
                           const res = await api.get("/courses");
                           const list = Array.isArray(res.data) ? res.data : [];
                           if (!list.length) {
-                            alert("No courses found in your department database yet.");
+                            alert(
+                              "No courses found in your department database yet."
+                            );
                             return;
                           }
                           const bNames = form.batches
@@ -1190,7 +1165,10 @@ export default function Routines() {
                             }
                             return `${bName}: ${picked.join(" ; ")}`;
                           });
-                          setForm({ ...form, batchSubjectsText: lines.join("\n") });
+                          setForm({
+                            ...form,
+                            batchSubjectsText: lines.join("\n")
+                          });
                         } catch {
                           alert("Could not load courses from database.");
                         }
@@ -1209,7 +1187,7 @@ export default function Routines() {
                     required
                   />
                   <small>
-                    Enter the subjects for each batch above (separated by `;`). The generator will automatically assign dates (Sun-Thu, skipping Fri/Sat) with study gaps between exams!
+                    Enter the subjects for each batch above (separated by `;`). The generator will automatically assign dates between Start Date and End Date (Sun-Thu, skipping Fri/Sat) with study gaps!
                   </small>
                 </label>
 
@@ -1323,9 +1301,12 @@ export default function Routines() {
                     <button
                       type="submit"
                       className="routine-primary"
-                      disabled={busy}
+                      disabled={busy || Boolean(findLiveClash(generatedGrid.entries))}
                     >
-                      <Wand2 size={16} /> {findLiveClash(generatedGrid.entries) ? 'Resolve Clash to Publish' : 'Publish Class Routine'}
+                      <Wand2 size={16} />{" "}
+                      {findLiveClash(generatedGrid.entries)
+                        ? "Resolve Room Clash to Publish"
+                        : "Publish Class Routine"}
                     </button>
                   )}
                 </div>
@@ -1438,7 +1419,9 @@ export default function Routines() {
                     {item.term && <span>Term: {item.term}</span>}
                     <span>
                       {item.kind === "exam"
-                        ? `Batches: ${(item.batches || []).map((b) => b.name).join(", ")}`
+                        ? `Batches: ${(item.batches || [])
+                            .map((b) => b.name)
+                            .join(", ")}`
                         : item.kind === "generated"
                         ? `Scheduled Classes: ${item.entries?.length || 0} slots`
                         : `File: ${item.originalName}`}
